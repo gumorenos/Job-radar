@@ -26,12 +26,14 @@ Abrir `http://127.0.0.1:8765`.
 - Perfil por CV: el dashboard acepta PDF/DOCX/Markdown/TXT, convierte a Markdown en `tracking/job-radar/profile/cv.md`, genera `tracking/job-radar/profile/candidate-profile.json` y el runner usa ese perfil como bonus de matching
 - Match profundo: el dashboard permite seleccionar vacantes, pedir analisis CV/perfil vs puesto, guardar el resultado en SQLite (`vacancy_analyses`) y exportarlo a Markdown/XLSX (`entregables/JOB_RADAR_ANALISIS_MATCH_LATEST.*`)
 - LLM bajo demanda: si `OPENAI_API_KEY` esta configurado usa Responses API con `JOB_RADAR_LLM_MODEL` opcional; si no, cae a analisis heuristico para no bloquear el flujo
+- Fuentes intercambiables: `enabled_sources` reemplaza/compatibiliza `enabled_portals`; soporta fuentes locales (`agentmail`, `linkedin`, `indeed`, `getonboard`) y aliases Apify (`apify_valig`, `apify_cheap_scraper`, `apify_curious_coder`) en modo disabled/dry-run hasta configurar token/cap de gasto
 
 ## Fuentes activas
 
 - AgentMail: lee `tracking/agentmail-vacancies/processed-vacancies-*.json`
-- JobSpy: `linkedin` e `indeed`, con busquedas definidas en el perfil
+- JobSpy/local: `linkedin` e `indeed`, con busquedas definidas en el perfil
 - GetOnBoard: HTML simple como fuente experimental
+- Apify aliases preparados: `valig/linkedin-jobs-scraper`, `cheap_scraper/linkedin-job-scraper`, `curious_coder/linkedin-jobs-scraper`; no se ejecutan mientras `apify_mode` no sea `enabled`
 
 ## Fuentes probeadas
 

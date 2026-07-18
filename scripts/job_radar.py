@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import sqlite3
 from difflib import SequenceMatcher
@@ -71,6 +72,28 @@ SOURCE_RANK = {
     "linkedin": 4,
     "agentmail": 3,
     "getonboard": 2,
+    "apify_valig": 2,
+    "apify_cheap_scraper": 2,
+    "apify_curious_coder": 2,
+}
+
+LOCAL_SOURCE_KEYS = {"agentmail", "linkedin", "indeed", "getonboard"}
+APIFY_SOURCE_DEFS = {
+    "apify_valig": {
+        "actor": "valig/linkedin-jobs-scraper",
+        "label": "Apify Valig LinkedIn Jobs",
+        "price_per_1000_usd": 0.40,
+    },
+    "apify_cheap_scraper": {
+        "actor": "cheap_scraper/linkedin-job-scraper",
+        "label": "Apify Cheap Scraper LinkedIn Jobs",
+        "price_per_1000_usd": 0.35,
+    },
+    "apify_curious_coder": {
+        "actor": "curious_coder/linkedin-jobs-scraper",
+        "label": "Apify Curious Coder LinkedIn Jobs",
+        "price_per_1000_usd": 1.00,
+    },
 }
 
 
@@ -149,11 +172,15 @@ def load_profile() -> dict:
     return profile
 
 
+def enabled_sources(profile: dict) -> set[str]:
+    sources = profile.get("enabled_sources") or profile.get("enabled_portals")
+    if not sources:
+        sources = ["agentmail", "linkedin", "indeed", "getonboard"]
+    return {clean_text(source, 80).lower() for source in sources if clean_text(source, 80)}
+
+
 def enabled_portals(profile: dict) -> set[str]:
-    portals = profile.get("enabled_portals")
-    if not portals:
-        portals = ["agentmail", "linkedin", "indeed", "getonboard"]
-    return {clean_text(portal, 80).lower() for portal in portals if clean_text(portal, 80)}
+    return enabled_sources(profile)
 
 
 def init_db(path: Path = DB_PATH) -> sqlite3.Connection:
@@ -505,6 +532,38 @@ def import_getonboard(profile: dict, limit_per_query: int) -> tuple[list[dict], 
     return items, blockers
 
 
+def apify_search_input(profile: dict, limit_per_query: int) -> dict:
+    terms = profile.get("search_terms") or []
+    locations = profile.get("locations") or []
+    max_items = min(
+        int(profile.get("apify_max_items") or limit_per_query * max(1, len(terms)) * max(1, len(locations))),
+        int(profile.get("apify_hard_max_items") or 200),
+    )
+    return {
+        "search_terms": terms,
+        "locations": locations,
+        "max_items": max_items,
+        "note": "Dry-run payload. Actor-specific input mapping is applied only when Apify is explicitly enabled.",
+    }
+
+
+def import_apify_source(profile: dict, source_key: str, limit_per_query: int) -> tuple[list[dict], list[str]]:
+    source_def = APIFY_SOURCE_DEFS[source_key]
+    mode = clean_text(profile.get("apify_mode") or "disabled", 40).lower()
+    if mode != "enabled":
+        payload = apify_search_input(profile, limit_per_query)
+        return [], [
+            f"apify:{source_key}: {mode or 'disabled'}; no se ejecuto actor {source_def['actor']}; "
+            f"payload_preview={json.dumps(payload, ensure_ascii=False)}"
+        ]
+    token = os.environ.get("APIFY_API_TOKEN")
+    if not token:
+        return [], [f"apify:{source_key}: APIFY_API_TOKEN no configurado; no se ejecuto {source_def['actor']}"]
+    return [], [
+        f"apify:{source_key}: interfaz lista para {source_def['actor']}, pero el mapeo de input/output real queda bloqueado hasta benchmark aprobado con cap de gasto"
+    ]
+
+
 def upsert_items(conn: sqlite3.Connection, run_id: str, items: list[dict], profile: dict) -> tuple[int, int]:
     inserted = 0
     updated = 0
@@ -762,22 +821,26 @@ def main() -> int:
 
     all_items: list[dict] = []
     blockers: list[str] = []
-    portals = enabled_portals(profile)
-    if not args.no_agentmail and "agentmail" in portals:
+    sources = enabled_sources(profile)
+    if not args.no_agentmail and "agentmail" in sources:
         items, issues = import_agentmail(args.agentmail_days)
         all_items.extend(items)
         blockers.extend(issues)
     jobspy_profile = dict(profile)
     jobspy_profile["jobspy_sites"] = [
         site for site in profile.get("jobspy_sites", [])
-        if clean_text(site, 80).lower() in portals
+        if clean_text(site, 80).lower() in sources
     ]
     if not args.no_jobspy and jobspy_profile["jobspy_sites"]:
         items, issues = import_jobspy(jobspy_profile, args.limit_per_query)
         all_items.extend(items)
         blockers.extend(issues)
-    if not args.no_getonboard and "getonboard" in portals:
+    if not args.no_getonboard and "getonboard" in sources:
         items, issues = import_getonboard(profile, args.limit_per_query)
+        all_items.extend(items)
+        blockers.extend(issues)
+    for source_key in sorted(sources & set(APIFY_SOURCE_DEFS)):
+        items, issues = import_apify_source(profile, source_key, args.limit_per_query)
         all_items.extend(items)
         blockers.extend(issues)
 

@@ -23,6 +23,14 @@
     "indeed",
     "getonboard"
   ],
+  "enabled_sources": [
+    "agentmail",
+    "linkedin",
+    "indeed",
+    "getonboard"
+  ],
+  "apify_mode": "disabled",
+  "apify_hard_max_items": 200,
   "jobspy_country_indeed": "peru",
   "salary_target_pen": 7000,
   "must_review_terms": [

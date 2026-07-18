@@ -46,6 +46,7 @@ LIST_FIELDS = {
     "search_terms",
     "locations",
     "jobspy_sites",
+    "enabled_sources",
     "enabled_portals",
     "must_review_terms",
     "positive_terms",
@@ -53,11 +54,14 @@ LIST_FIELDS = {
     "remote_terms",
 }
 
-PORTALS = [
+SOURCES = [
     ("agentmail", "AgentMail"),
     ("linkedin", "LinkedIn"),
     ("indeed", "Indeed"),
     ("getonboard", "GetOnBoard"),
+    ("apify_valig", "Apify Valig"),
+    ("apify_cheap_scraper", "Apify Cheap Scraper"),
+    ("apify_curious_coder", "Apify Curious Coder"),
 ]
 
 
@@ -123,6 +127,8 @@ def save_profile(payload: dict) -> dict:
             updated[key] = int(value or 0)
         else:
             updated[key] = value
+    if "enabled_sources" in updated:
+        updated["enabled_portals"] = [source for source in updated["enabled_sources"] if source in {"agentmail", "linkedin", "indeed", "getonboard"}]
     PROFILE_PATH.write_text(json.dumps(updated, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return updated
 
@@ -639,24 +645,29 @@ HTML = r"""<!doctype html>
         ['search_terms', 'Búsquedas', 'textarea'],
         ['locations', 'Ubicaciones', 'textarea'],
         ['jobspy_sites', 'JobSpy sites', 'textarea'],
+        ['apify_mode', 'Apify mode: disabled / dry_run / enabled', 'input'],
+        ['apify_hard_max_items', 'Apify hard max items', 'number'],
         ['must_review_terms', 'Términos fuertes', 'textarea'],
         ['positive_terms', 'Términos positivos', 'textarea'],
         ['negative_terms', 'Términos negativos', 'textarea'],
         ['remote_terms', 'Remoto / ubicación', 'textarea']
       ];
-      const enabled = new Set(data.enabled_portals || ['agentmail', 'linkedin', 'indeed', 'getonboard']);
+      const enabled = new Set(data.enabled_sources || data.enabled_portals || ['agentmail', 'linkedin', 'indeed', 'getonboard']);
       const portalHtml = `
         <div style="margin-top:12px">
-          <div style="font-size:13px;font-weight:700;margin-bottom:6px">Portales incluidos</div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px">Fuentes incluidas</div>
           <div class="portal-grid">
             ${[
               ['agentmail', 'AgentMail'],
               ['linkedin', 'LinkedIn'],
               ['indeed', 'Indeed'],
-              ['getonboard', 'GetOnBoard']
+              ['getonboard', 'GetOnBoard'],
+              ['apify_valig', 'Apify Valig'],
+              ['apify_cheap_scraper', 'Apify Cheap'],
+              ['apify_curious_coder', 'Apify Curious']
             ].map(([key, label]) => `
-              <label class="portal-option">
-                <input type="checkbox" data-portal="${key}" ${enabled.has(key) ? 'checked' : ''}>
+              <label class="portal-option" title="${key.startsWith('apify_') ? 'Apify queda en dry-run/disabled hasta configurar token y cap' : ''}">
+                <input type="checkbox" data-source="${key}" ${enabled.has(key) ? 'checked' : ''}>
                 ${label}
               </label>
             `).join('')}
@@ -789,7 +800,7 @@ HTML = r"""<!doctype html>
     async function saveProfile() {
       const payload = {};
       document.querySelectorAll('[data-key]').forEach(el => payload[el.dataset.key] = el.value);
-      payload.enabled_portals = [...document.querySelectorAll('[data-portal]:checked')].map(el => el.dataset.portal);
+      payload.enabled_sources = [...document.querySelectorAll('[data-source]:checked')].map(el => el.dataset.source);
       renderProfile(await api('/api/profile', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
