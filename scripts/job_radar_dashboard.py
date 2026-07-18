@@ -22,6 +22,7 @@ try:
         process_cv_upload,
         save_candidate_profile,
     )
+    from job_radar_match_analysis import analyze_vacancy, export_analyses, init_analysis_db, latest_analysis
 except ModuleNotFoundError:
     from scripts.job_radar_candidate import (
         CANDIDATE_PROFILE_PATH,
@@ -31,6 +32,7 @@ except ModuleNotFoundError:
         process_cv_upload,
         save_candidate_profile,
     )
+    from scripts.job_radar_match_analysis import analyze_vacancy, export_analyses, init_analysis_db, latest_analysis
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -155,6 +157,7 @@ def save_candidate_payload(payload: dict) -> dict:
 def connect_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    init_analysis_db(conn)
     return conn
 
 
@@ -170,6 +173,15 @@ def get_summary(conn: sqlite3.Connection) -> dict:
           sum(case when status='duplicate' then 1 else 0 end) duplicates,
           sum(case when status='false_positive' then 1 else 0 end) false_positive
         from vacancies
+        """
+    ).fetchone()
+    analysis_row = conn.execute(
+        """
+        select
+          count(*) total,
+          sum(case when status='done' then 1 else 0 end) done,
+          sum(case when status='error' then 1 else 0 end) errors
+        from vacancy_analyses
         """
     ).fetchone()
     by_source = conn.execute(
@@ -192,6 +204,7 @@ def get_summary(conn: sqlite3.Connection) -> dict:
     ).fetchone()
     return {
         "counts": dict(rows) if rows else {},
+        "analyses": dict(analysis_row) if analysis_row else {},
         "by_source": [dict(row) for row in by_source],
         "last_run": dict(last_run) if last_run else None,
         "latest_xlsx": str(LATEST_XLSX),
@@ -208,26 +221,29 @@ def list_vacancies(query: dict) -> list[dict]:
     where = []
     params: list[object] = []
     if verdict:
-        where.append("verdict = ?")
+        where.append("v.verdict = ?")
         params.append(verdict)
     if source:
-        where.append("source = ?")
+        where.append("v.source = ?")
         params.append(source)
     if status == "active":
-        where.append("status not in ('discarded', 'duplicate', 'false_positive')")
+        where.append("v.status not in ('discarded', 'duplicate', 'false_positive')")
     elif status:
-        where.append("status = ?")
+        where.append("v.status = ?")
         params.append(status)
     if search:
-        where.append("(lower(title) like ? or lower(company) like ? or lower(location) like ? or lower(description) like ?)")
+        where.append("(lower(v.title) like ? or lower(v.company) like ? or lower(v.location) like ? or lower(v.description) like ?)")
         params.extend([f"%{search}%"] * 4)
     clause = "where " + " and ".join(where) if where else ""
     sql = f"""
-        select id, source, source_detail, title, company, location, remote, published,
-               salary_text, url, score, verdict, status, first_seen_at, last_seen_at
+        select v.id, v.source, v.source_detail, v.title, v.company, v.location, v.remote, v.published,
+               v.salary_text, v.url, v.score, v.verdict, v.status, v.first_seen_at, v.last_seen_at,
+               a.status analysis_status, a.match_score analysis_score, a.updated_at analysis_updated_at
         from vacancies
+        v
+        left join vacancy_analyses a on a.vacancy_id = v.id
         {clause}
-        order by score desc, last_seen_at desc
+        order by v.score desc, v.last_seen_at desc
         limit ?
     """
     params.append(limit)
@@ -242,6 +258,31 @@ def update_vacancy_status(vacancy_id: str, status: str) -> None:
     with connect_db() as conn:
         conn.execute("update vacancies set status=? where id=?", (status, vacancy_id))
         conn.commit()
+
+
+def analyze_vacancies_payload(payload: dict) -> dict:
+    vacancy_ids = payload.get("ids") or payload.get("id") or []
+    if isinstance(vacancy_ids, str):
+        vacancy_ids = [vacancy_ids]
+    vacancy_ids = [str(item) for item in vacancy_ids if str(item).strip()]
+    if not vacancy_ids:
+        raise ValueError("Selecciona al menos una vacante.")
+    force = bool(payload.get("force"))
+    offline = bool(payload.get("offline"))
+    results = [analyze_vacancy(vacancy_id, force=force, offline=offline) for vacancy_id in vacancy_ids[:10]]
+    return {"ok": True, "count": len(results), "analyses": results}
+
+
+def get_analysis_payload(vacancy_id: str) -> dict:
+    with connect_db() as conn:
+        analysis = latest_analysis(conn, vacancy_id)
+    return analysis or {"vacancy_id": vacancy_id, "status": "missing"}
+
+
+def export_analyses_payload(query: dict) -> dict:
+    raw_ids = query.get("ids", [""])[0]
+    vacancy_ids = [item for item in raw_ids.split(",") if item] if raw_ids else None
+    return export_analyses(vacancy_ids)
 
 
 def run_radar(payload: dict) -> dict:
@@ -336,6 +377,7 @@ HTML = r"""<!doctype html>
     button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
     button.ghost { background: #eef3ff; border-color: #d6e2ff; color: #174ea6; }
     button.warn { background: #fff4e3; border-color: #ffd79a; color: var(--amber); }
+    button:disabled { opacity: .48; cursor: not-allowed; }
     input, select { height: 36px; padding: 0 10px; }
     textarea {
       width: 100%;
@@ -413,6 +455,35 @@ HTML = r"""<!doctype html>
     .cv-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
     .cv-actions input[type=file] { max-width: 100%; height: auto; padding: 8px; }
     .json-preview { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; min-height: 150px; font-size: 12px; }
+    .selected-panel {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: #fbfcff;
+    }
+    .analysis-box {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+      display: none;
+    }
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    .analysis-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fbfcff;
+    }
+    .checkcell { display: flex; gap: 8px; align-items: flex-start; }
+    .checkcell input { width: 16px; height: 16px; margin-top: 3px; flex: 0 0 auto; }
     .link-button {
       height: 36px;
       display: inline-flex;
@@ -494,6 +565,16 @@ HTML = r"""<!doctype html>
     <section>
       <div class="metrics" id="metrics"></div>
       <div class="statusbar" id="status">Cargando...</div>
+      <div class="selected-panel">
+        <div><strong id="selectedCount">0</strong> seleccionadas</div>
+        <div class="toolbar">
+          <button class="ghost" onclick="selectVisibleTop()">Seleccionar Top visibles</button>
+          <button class="primary" id="analyzeBtn" onclick="analyzeSelected()" disabled>Analizar match</button>
+          <button class="ghost" id="exportBtn" onclick="exportSelectedAnalyses()" disabled>Export análisis</button>
+          <button onclick="clearSelection()">Limpiar</button>
+        </div>
+      </div>
+      <div class="analysis-box" id="analysisBox"></div>
       <div class="filters">
         <input id="q" placeholder="Buscar título, empresa, ubicación..." oninput="debouncedLoad()">
         <select id="verdict" onchange="loadVacancies()">
@@ -521,7 +602,7 @@ HTML = r"""<!doctype html>
         <table>
           <thead>
             <tr>
-              <th style="width:132px">Score</th>
+              <th style="width:158px">Score</th>
               <th>Vacante</th>
               <th style="width:170px">Empresa</th>
               <th style="width:150px">Fuente</th>
@@ -537,6 +618,8 @@ HTML = r"""<!doctype html>
   <script>
     let profile = {};
     let timer;
+    let currentRows = [];
+    const selected = new Set();
 
     async function api(path, opts = {}) {
       const res = await fetch(path, opts);
@@ -598,7 +681,8 @@ HTML = r"""<!doctype html>
         ['Backup', c.backup || 0],
         ['Descartadas', c.discarded || 0],
         ['Duplicadas', c.duplicates || 0],
-        ['Falsos +', c.false_positive || 0]
+        ['Falsos +', c.false_positive || 0],
+        ['Analizadas', (summary.analyses || {}).done || 0]
       ];
       document.getElementById('metrics').innerHTML = items.map(([label, value]) =>
         `<div class="metric"><strong>${value}</strong><span>${label}</span></div>`
@@ -616,9 +700,19 @@ HTML = r"""<!doctype html>
     }
 
     function renderVacancies(rows) {
+      currentRows = rows;
       document.getElementById('vacancies').innerHTML = rows.map(row => `
         <tr>
-          <td><span class="pill ${row.verdict}">${row.score} ${row.verdict}</span></td>
+          <td>
+            <div class="checkcell">
+              <input type="checkbox" data-select-id="${row.id}" ${selected.has(row.id) ? 'checked' : ''} onchange="toggleSelection('${row.id}', this.checked)">
+              <div>
+                <span class="pill ${row.verdict}">${row.score} ${row.verdict}</span>
+                ${row.analysis_score !== null && row.analysis_score !== undefined ? `<div style="margin-top:6px"><span class="pill">${row.analysis_score} match</span></div>` : ''}
+                ${row.analysis_status ? `<div class="muted" style="margin-top:4px">Análisis: ${escapeHtml(row.analysis_status)}</div>` : ''}
+              </div>
+            </div>
+          </td>
           <td>
             <div class="title">${escapeHtml(row.title || '')}</div>
             <div class="muted">${escapeHtml(row.published || '')} ${escapeHtml(row.salary_text || '')}</div>
@@ -630,11 +724,62 @@ HTML = r"""<!doctype html>
           <td>
             <button onclick="setStatus('${row.id}', 'review')">Revisar</button>
             <button onclick="setStatus('${row.id}', 'apply')">Aplicar</button>
+            <button class="ghost" onclick="analyzeOne('${row.id}')">Analizar</button>
             <button class="warn" onclick="setStatus('${row.id}', 'discarded')">Descartar</button>
             <button class="warn" onclick="setStatus('${row.id}', 'false_positive')">Falso +</button>
           </td>
         </tr>
       `).join('');
+      syncSelectionUi();
+    }
+
+    function syncSelectionUi() {
+      document.getElementById('selectedCount').textContent = selected.size;
+      document.getElementById('analyzeBtn').disabled = selected.size === 0;
+      document.getElementById('exportBtn').disabled = selected.size === 0;
+      document.querySelectorAll('[data-select-id]').forEach(el => el.checked = selected.has(el.dataset.selectId));
+    }
+
+    function toggleSelection(id, checked) {
+      if (checked) selected.add(id);
+      else selected.delete(id);
+      syncSelectionUi();
+    }
+
+    function clearSelection() {
+      selected.clear();
+      syncSelectionUi();
+    }
+
+    function selectVisibleTop() {
+      currentRows
+        .filter(row => row.verdict === 'priorizar' && row.status !== 'duplicate' && row.status !== 'false_positive')
+        .slice(0, 10)
+        .forEach(row => selected.add(row.id));
+      syncSelectionUi();
+    }
+
+    function renderAnalysisResults(items) {
+      const box = document.getElementById('analysisBox');
+      const rows = (items || []).map(item => item.analysis ? item : {analysis: item});
+      if (!rows.length) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+      }
+      box.style.display = 'block';
+      box.innerHTML = `<div class="analysis-grid">${rows.map(row => {
+        const a = row.analysis || {};
+        return `<div class="analysis-card">
+          <div><strong>${a.match_score ?? row.match_score ?? 'n/d'}/100</strong> ${escapeHtml(a.probability || '')}</div>
+          <div class="muted">${escapeHtml(row.model || a.method || '')}</div>
+          <p>${escapeHtml(a.summary || row.error || '')}</p>
+          <div><strong>Brechas</strong></div>
+          <ul>${(a.critical_gaps || []).slice(0, 4).map(x => `<li>${escapeHtml(x)}</li>`).join('') || '<li>Sin brechas críticas detectadas</li>'}</ul>
+          <div><strong>Cursos/certs</strong></div>
+          <ul>${(a.recommended_courses || []).slice(0, 4).map(x => `<li>${escapeHtml(x)}</li>`).join('') || '<li>Sin recomendación específica</li>'}</ul>
+        </div>`;
+      }).join('')}</div>`;
     }
 
     async function loadProfile() {
@@ -723,6 +868,32 @@ HTML = r"""<!doctype html>
       await refreshAll();
     }
 
+    async function analyzeOne(id) {
+      selected.add(id);
+      await analyzeSelected([id]);
+    }
+
+    async function analyzeSelected(ids = null) {
+      const targetIds = ids || [...selected];
+      if (!targetIds.length) return;
+      document.getElementById('status').textContent = `Analizando ${targetIds.length} vacante(s)...`;
+      const result = await api('/api/vacancy/analyze', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: targetIds})
+      });
+      renderAnalysisResults(result.analyses || []);
+      document.getElementById('status').textContent = `Análisis terminado: ${result.count} vacante(s).`;
+      await refreshAll();
+    }
+
+    async function exportSelectedAnalyses() {
+      const ids = [...selected];
+      if (!ids.length) return;
+      const result = await api('/api/analyses/export?ids=' + encodeURIComponent(ids.join(',')));
+      document.getElementById('status').textContent = `Export listo: ${result.latest_markdown}${result.xlsx ? ' | ' + result.xlsx : ''}`;
+    }
+
     async function runRadar() {
       await saveProfile();
       document.getElementById('status').textContent = 'Corriendo radar... puede tardar unos minutos.';
@@ -785,6 +956,13 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/vacancies":
             send_json(self, list_vacancies(parse_qs(parsed.query)))
             return
+        if parsed.path == "/api/analysis":
+            query = parse_qs(parsed.query)
+            send_json(self, get_analysis_payload(str(query.get("id", [""])[0])))
+            return
+        if parsed.path == "/api/analyses/export":
+            send_json(self, export_analyses_payload(parse_qs(parsed.query)))
+            return
         if parsed.path == "/download/latest.xlsx":
             send_file(self, LATEST_XLSX, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             return
@@ -808,6 +986,9 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/vacancy/status":
                 update_vacancy_status(str(payload["id"]), str(payload["status"]))
                 send_json(self, {"ok": True})
+                return
+            if parsed.path == "/api/vacancy/analyze":
+                send_json(self, analyze_vacancies_payload(payload))
                 return
             if parsed.path == "/api/run":
                 send_json(self, run_radar(payload))
