@@ -1,0 +1,7 @@
+python-jobspy
+pandas
+openpyxl
+beautifulsoup4
+requests
+pymupdf
+python-docx

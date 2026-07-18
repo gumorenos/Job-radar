@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+
+config/job-radar-profile.json
+
+tracking/job-radar/.venv/
+tracking/job-radar/job_radar.sqlite
+tracking/job-radar/runs/*
+!tracking/job-radar/runs/.gitkeep
+tracking/job-radar/profile/*
+!tracking/job-radar/profile/.gitkeep
+
+entregables/*
+!entregables/.gitkeep
+
+.DS_Store

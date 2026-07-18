@@ -1,0 +1,86 @@
+{
+  "profile_name": "gus_hr_people_strategy_v1",
+  "timezone": "America/Lima",
+  "search_terms": [
+    "HR Business Partner",
+    "People Analytics",
+    "People Operations",
+    "Human Resources Manager",
+    "Compensation Benefits",
+    "Recursos Humanos Business Partner"
+  ],
+  "locations": [
+    "Lima, Peru",
+    "Peru"
+  ],
+  "jobspy_sites": [
+    "linkedin",
+    "indeed"
+  ],
+  "enabled_portals": [
+    "agentmail",
+    "linkedin",
+    "indeed",
+    "getonboard"
+  ],
+  "jobspy_country_indeed": "peru",
+  "salary_target_pen": 7000,
+  "must_review_terms": [
+    "hrbp",
+    "hr business partner",
+    "human resources business partner",
+    "people partner",
+    "people analytics",
+    "people operations",
+    "compensation",
+    "benefits",
+    "total rewards",
+    "recursos humanos",
+    "gestion de personas",
+    "gestión de personas"
+  ],
+  "positive_terms": [
+    "manager",
+    "jefe",
+    "lead",
+    "senior",
+    "regional",
+    "strategy",
+    "estrategia",
+    "analytics",
+    "data",
+    "cultura",
+    "talento",
+    "organizational development",
+    "desarrollo organizacional",
+    "employee relations"
+  ],
+  "negative_terms": [
+    "practicante",
+    "intern",
+    "trainee",
+    "junior",
+    "asistente",
+    "assistant",
+    "payroll assistant",
+    "account executive",
+    "key account manager",
+    "sales account",
+    "sales representative",
+    "edtech",
+    "call center",
+    "it business partner",
+    "supply chain",
+    "procurement"
+  ],
+  "remote_terms": [
+    "remote",
+    "remoto",
+    "hybrid",
+    "híbrido",
+    "hibrido",
+    "lima",
+    "peru",
+    "latam"
+  ]
+}
