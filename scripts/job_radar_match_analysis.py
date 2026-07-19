@@ -20,7 +20,13 @@ ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "tracking" / "job-radar" / "job_radar.sqlite"
 ENTREGABLES = ROOT / "entregables"
 PROMPT_VERSION = "job-radar-match-v1"
-DEFAULT_MODEL = os.environ.get("JOB_RADAR_LLM_MODEL", "gpt-5.1")
+DEFAULT_PROVIDER = os.environ.get("JOB_RADAR_LLM_PROVIDER", "openrouter").lower()
+DEFAULT_MODEL_BY_PROVIDER = {
+    "openrouter": "deepseek/deepseek-v4-flash",
+    "deepseek": "deepseek-chat",
+    "openai": "gpt-5.1",
+}
+DEFAULT_MODEL = os.environ.get("JOB_RADAR_LLM_MODEL", DEFAULT_MODEL_BY_PROVIDER.get(DEFAULT_PROVIDER, "deepseek/deepseek-v4-flash"))
 
 COURSE_CATALOG = {
     "people analytics": [
@@ -365,7 +371,43 @@ def parse_llm_json(text: str) -> dict:
     return data
 
 
-def llm_analysis(vacancy: dict, cv_markdown: str, candidate_profile: dict, model: str = DEFAULT_MODEL) -> dict:
+def chat_completion_analysis(
+    vacancy: dict,
+    cv_markdown: str,
+    candidate_profile: dict,
+    url: str,
+    api_key: str,
+    model: str,
+    provider: str,
+    extra_headers: dict | None = None,
+) -> dict:
+    response = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            **(extra_headers or {}),
+        },
+        json={
+            "model": model,
+            "messages": prompt_payload(vacancy, cv_markdown, candidate_profile),
+            "temperature": 0.2,
+            "max_tokens": 1800,
+            "response_format": {"type": "json_object"},
+        },
+        timeout=90,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    text = payload["choices"][0]["message"]["content"]
+    data = parse_llm_json(text)
+    data["method"] = f"llm:{provider}"
+    if payload.get("usage"):
+        data["llm_usage"] = payload["usage"]
+    return data
+
+
+def openai_responses_analysis(vacancy: dict, cv_markdown: str, candidate_profile: dict, model: str) -> dict:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY no configurado")
@@ -390,10 +432,51 @@ def llm_analysis(vacancy: dict, cv_markdown: str, candidate_profile: dict, model
                 if content.get("type") in {"output_text", "text"}:
                     parts.append(content.get("text", ""))
         text = "\n".join(parts)
-    return parse_llm_json(text)
+    data = parse_llm_json(text)
+    data["method"] = "llm:openai"
+    if payload.get("usage"):
+        data["llm_usage"] = payload["usage"]
+    return data
 
 
-def analyze_vacancy(vacancy_id: str, force: bool = False, offline: bool = False) -> dict:
+def llm_analysis(vacancy: dict, cv_markdown: str, candidate_profile: dict, model: str = DEFAULT_MODEL, provider: str = DEFAULT_PROVIDER) -> dict:
+    provider = provider.lower()
+    if provider == "openai":
+        return openai_responses_analysis(vacancy, cv_markdown, candidate_profile, model)
+    if provider == "openrouter":
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENROUTER_API_KEY no configurado")
+        return chat_completion_analysis(
+            vacancy,
+            cv_markdown,
+            candidate_profile,
+            "https://openrouter.ai/api/v1/chat/completions",
+            api_key,
+            model,
+            provider,
+            {
+                "HTTP-Referer": os.environ.get("JOB_RADAR_OPENROUTER_REFERER", "http://localhost/job-radar"),
+                "X-Title": os.environ.get("JOB_RADAR_OPENROUTER_TITLE", "Job Radar Personal"),
+            },
+        )
+    if provider == "deepseek":
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise RuntimeError("DEEPSEEK_API_KEY no configurado")
+        return chat_completion_analysis(
+            vacancy,
+            cv_markdown,
+            candidate_profile,
+            "https://api.deepseek.com/chat/completions",
+            api_key,
+            model,
+            provider,
+        )
+    raise RuntimeError(f"Proveedor LLM no soportado: {provider}")
+
+
+def analyze_vacancy(vacancy_id: str, force: bool = False, offline: bool = False, provider: str = DEFAULT_PROVIDER, model: str = DEFAULT_MODEL) -> dict:
     cv_markdown, candidate_profile = load_context()
     with connect_db() as conn:
         if not force:
@@ -401,12 +484,13 @@ def analyze_vacancy(vacancy_id: str, force: bool = False, offline: bool = False)
             if current and current.get("status") == "done":
                 return current
         vacancy = get_vacancy(conn, vacancy_id)
-        upsert_analysis(conn, vacancy_id, "pending", DEFAULT_MODEL)
+        model_label = f"{provider}:{model}"
+        upsert_analysis(conn, vacancy_id, "pending", model_label)
         try:
             if offline:
                 raise RuntimeError("offline mode")
-            analysis = llm_analysis(vacancy, cv_markdown, candidate_profile, DEFAULT_MODEL)
-            return upsert_analysis(conn, vacancy_id, "done", DEFAULT_MODEL, analysis=analysis)
+            analysis = llm_analysis(vacancy, cv_markdown, candidate_profile, model, provider)
+            return upsert_analysis(conn, vacancy_id, "done", model_label, analysis=analysis)
         except Exception as exc:
             fallback = heuristic_analysis(vacancy, cv_markdown, candidate_profile)
             fallback["llm_error"] = str(exc)
@@ -484,10 +568,12 @@ def main() -> int:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--export", action="store_true")
+    parser.add_argument("--provider", default=DEFAULT_PROVIDER, choices=["openrouter", "deepseek", "openai"])
+    parser.add_argument("--model", default=DEFAULT_MODEL)
     args = parser.parse_args()
     results = []
     for vacancy_id in args.vacancy_ids:
-        results.append(analyze_vacancy(vacancy_id, force=args.force, offline=args.offline))
+        results.append(analyze_vacancy(vacancy_id, force=args.force, offline=args.offline, provider=args.provider, model=args.model))
     payload = {"analyses": results}
     if args.export:
         payload["export"] = export_analyses(args.vacancy_ids or None)

@@ -25,8 +25,10 @@ Abrir `http://127.0.0.1:8765`.
 - Calibracion inicial: baja matches fuertes que aparecen solo en la descripcion y penaliza roles comerciales como `account executive` / `key account manager`
 - Perfil por CV: el dashboard acepta PDF/DOCX/Markdown/TXT, convierte a Markdown en `tracking/job-radar/profile/cv.md`, genera `tracking/job-radar/profile/candidate-profile.json` y el runner usa ese perfil como bonus de matching
 - Match profundo: el dashboard permite seleccionar vacantes, pedir analisis CV/perfil vs puesto, guardar el resultado en SQLite (`vacancy_analyses`) y exportarlo a Markdown/XLSX (`entregables/JOB_RADAR_ANALISIS_MATCH_LATEST.*`)
-- LLM bajo demanda: si `OPENAI_API_KEY` esta configurado usa Responses API con `JOB_RADAR_LLM_MODEL` opcional; si no, cae a analisis heuristico para no bloquear el flujo
+- LLM bajo demanda: `JOB_RADAR_LLM_PROVIDER=openrouter|deepseek|openai`; por defecto usa OpenRouter + `deepseek/deepseek-v4-flash` si existe `OPENROUTER_API_KEY`; si no, cae a analisis heuristico para no bloquear el flujo
 - Fuentes intercambiables: `enabled_sources` reemplaza/compatibiliza `enabled_portals`; soporta fuentes locales (`agentmail`, `linkedin`, `indeed`, `getonboard`) y aliases Apify (`apify_valig`, `apify_cheap_scraper`, `apify_curious_coder`) en modo disabled/dry-run hasta configurar token/cap de gasto
+- Benchmark seguro: `scripts/job_radar_benchmark.py` genera plan dry-run, precios Apify publicos y snapshot local sin ejecutar actores pagados
+- Cron wrapper preparado: `scripts/job_radar_cron.py --dry-run` muestra el comando L-V 07:00 Lima; no instala crontab ni envia Telegram por si solo
 
 ## Fuentes activas
 
@@ -71,6 +73,18 @@ Analisis de match por CLI:
 
 ```bash
 tracking/job-radar/.venv/bin/python scripts/job_radar_match_analysis.py --export <vacancy_id>
+```
+
+Benchmark dry-run de fuentes:
+
+```bash
+tracking/job-radar/.venv/bin/python scripts/job_radar_benchmark.py --limit 200
+```
+
+Wrapper cron sin instalarlo:
+
+```bash
+tracking/job-radar/.venv/bin/python scripts/job_radar_cron.py --dry-run
 ```
 
 ## Siguiente fase
