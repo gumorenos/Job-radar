@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 
 
-def test_ingestion_is_idempotent(monkeypatch, tmp_path):
-    db_path = tmp_path / "job-radar-test.sqlite"
+def configure_test_app(monkeypatch, tmp_path, db_path):
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
         json.dumps(
@@ -25,8 +24,6 @@ def test_ingestion_is_idempotent(monkeypatch, tmp_path):
     monkeypatch.setenv("JOB_RADAR_CANDIDATE_PROFILE_PATH", str(tmp_path / "missing-candidate.json"))
     monkeypatch.setenv("JOB_RADAR_ALLOW_UNAUTHENTICATED", "true")
 
-    from fastapi.testclient import TestClient
-
     from job_radar_app.database import reset_database_state
     from job_radar_app.settings import get_settings
 
@@ -35,9 +32,13 @@ def test_ingestion_is_idempotent(monkeypatch, tmp_path):
 
     from job_radar_app.api import app
 
-    payload = {
+    return app
+
+
+def sample_payload(run_id: str = "daily-2026-07-26") -> dict:
+    return {
         "source": "openclaw",
-        "source_run_id": "daily-2026-07-26",
+        "source_run_id": run_id,
         "postings": [
             {
                 "external_id": "linkedin-123",
@@ -52,6 +53,14 @@ def test_ingestion_is_idempotent(monkeypatch, tmp_path):
             }
         ],
     }
+
+
+def test_ingestion_is_idempotent(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    db_path = tmp_path / "job-radar-test.sqlite"
+    app = configure_test_app(monkeypatch, tmp_path, db_path)
+    payload = sample_payload()
 
     with TestClient(app) as client:
         first = client.post("/api/v1/postings/ingest", json=payload)
@@ -68,3 +77,27 @@ def test_ingestion_is_idempotent(monkeypatch, tmp_path):
         assert jobs.status_code == 200, jobs.text
         assert len(jobs.json()) == 1
         assert jobs.json()[0]["company"] == "Example Corp"
+
+
+def test_api_can_extend_a_legacy_sqlite_database(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from scripts.job_radar import init_db
+
+    db_path = tmp_path / "legacy-job-radar.sqlite"
+    legacy_connection = init_db(db_path)
+    legacy_connection.close()
+
+    app = configure_test_app(monkeypatch, tmp_path, db_path)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/postings/ingest",
+            json=sample_payload("legacy-compatible-2026-07-26"),
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["created"] == 1
+
+        health = client.get("/health")
+        assert health.status_code == 200
+        assert health.json()["database"] == "sqlite"
