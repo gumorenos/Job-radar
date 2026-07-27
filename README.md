@@ -1,5 +1,7 @@
 # Job Radar Personal
 
+Repositorio oficial actual: https://github.com/gumorenos/job-radar
+
 MVP local-first para buscar, normalizar, deduplicar y rankear vacantes para Gus.
 
 ## Setup rapido
