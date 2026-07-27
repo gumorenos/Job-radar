@@ -1,0 +1,16 @@
+services:
+  api:
+    build: .
+    container_name: job-radar-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8766:8766"
+    volumes:
+      - ./tracking:/app/tracking
+      - ./config:/app/config
+      - ./entregables:/app/entregables
+    command: >-
+      sh -c "alembic upgrade head &&
+      uvicorn job_radar_app.api:app --host 0.0.0.0 --port 8766"
