@@ -1,0 +1,11 @@
+.git
+.github
+.venv
+**/__pycache__
+.pytest_cache
+.env
+tracking/job-radar/.venv
+tracking/job-radar/job_radar.sqlite
+tracking/job-radar/runs
+tracking/job-radar/profile
+entregables
