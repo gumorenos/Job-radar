@@ -13,7 +13,92 @@ tracking/job-radar/.venv/bin/python scripts/job_radar_dashboard.py --host 127.0.
 
 Abrir `http://127.0.0.1:8765`.
 
-## Estado v0.7
+## Estado v0.8 - API foundation
+
+La rama de fundaciones agrega una capa desplegable sin reemplazar todavía el dashboard local:
+
+- FastAPI en `job_radar_app/api.py`.
+- SQLAlchemy compatible con el SQLite existente y preparado para PostgreSQL mediante `JOB_RADAR_DATABASE_URL`.
+- Migraciones con Alembic.
+- Autenticación por `X-API-Key`.
+- Ingesta idempotente para OpenClaw, futuros servidores MCP, n8n y extensiones de navegador.
+- Registro de cada lote en `ingestion_runs`.
+- Reutilización del scoring, normalización salarial y deduplicación del radar actual.
+- Docker Compose ligado a `127.0.0.1` por defecto.
+
+### Ejecutar la API localmente
+
+```bash
+cp .env.example .env
+# Cambiar JOB_RADAR_API_KEY en .env
+uv pip install --python tracking/job-radar/.venv/bin/python -r requirements.txt
+JOB_RADAR_API_KEY='tu-token' tracking/job-radar/.venv/bin/python -m uvicorn job_radar_app.api:app --host 127.0.0.1 --port 8766
+```
+
+Documentación interactiva: `http://127.0.0.1:8766/docs`.
+
+### Ejecutar con Docker Compose
+
+```bash
+cp .env.example .env
+# Cambiar JOB_RADAR_API_KEY en .env
+docker compose up -d --build
+curl http://127.0.0.1:8766/health
+```
+
+La API queda solo en localhost. Para acceso remoto usa Tailscale, Cloudflare Access o un reverse proxy autenticado; no expongas directamente el puerto.
+
+### Ingestar resultados de OpenClaw
+
+```bash
+curl -X POST http://127.0.0.1:8766/api/v1/postings/ingest \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: tu-token' \
+  -d '{
+    "source": "openclaw",
+    "source_run_id": "daily-2026-07-26",
+    "postings": [
+      {
+        "external_id": "linkedin-123456",
+        "title": "HR Business Partner",
+        "company": "Empresa X",
+        "location": "Lima, Peru",
+        "modality": "hybrid",
+        "published_at": "2026-07-26",
+        "salary_text": "S/ 8,000",
+        "url": "https://example.com/job/123456",
+        "description": "Strategic HRBP role..."
+      }
+    ]
+  }'
+```
+
+Repetir exactamente `source + source_run_id` devuelve el resultado guardado sin insertar otra vez. Cada publicación también conserva una clave externa, URL limpia, `first_seen_at`, `last_seen_at`, score y veredicto.
+
+Endpoints iniciales:
+
+```text
+GET  /health
+POST /api/v1/postings/ingest
+GET  /api/v1/jobs
+GET  /api/v1/jobs/new-relevant
+```
+
+### Migraciones y pruebas
+
+```bash
+alembic upgrade head
+uv pip install --python tracking/job-radar/.venv/bin/python -r requirements-dev.txt
+tracking/job-radar/.venv/bin/python -m pytest
+```
+
+La migración base conserva las tablas SQLite existentes y agrega las que falten. Antes de migrar una base real, guarda una copia de `tracking/job-radar/job_radar.sqlite`.
+
+### Alcance de esta primera etapa
+
+La API y el dashboard antiguo comparten el mismo SQLite. El cambio definitivo a PostgreSQL, el modelo separado de `jobs`, `job_postings`, `applications`, contactos e entrevistas, y el servidor MCP quedan para las siguientes iteraciones. La API se diseña ahora como única puerta de entrada para evitar que OpenClaw, MCP y la extensión escriban directamente en la base.
+
+## Estado v0.7 heredado
 
 - Base local: `tracking/job-radar/job_radar.sqlite`
 - Runner: `scripts/job_radar.py`
@@ -89,9 +174,9 @@ tracking/job-radar/.venv/bin/python scripts/job_radar_cron.py --dry-run
 
 ## Siguiente fase
 
-1. Revisar `entregables/JOB_RADAR_PERSONAL_LATEST.xlsx` o el dashboard local.
-2. Ajustar `config/job-radar-profile.json` desde el dashboard segun falsos positivos/falsos negativos.
-3. Subir un CV real desde `CV / Perfil`, revisar el Markdown y el JSON generado, y correr el radar para aplicar el perfil.
-4. Revisar duplicados ocultos desde el filtro `Duplicadas` si parece que falta alguna vacante.
-5. Agregar Bumeran o mejorar GetOnBoard si aportan vacantes reales.
-6. Cuando el reporte sea util, crear wrapper cron sin enviar listas largas.
+1. Conectar OpenClaw al endpoint de ingesta y retirar la escritura a Notion.
+2. Probar despliegue persistente en el VPS mediante Tailscale o Cloudflare Access.
+3. Separar `jobs`, `job_postings` y `applications`, y migrar a PostgreSQL.
+4. Crear servidor MCP sobre la API, sin acceso SQL directo.
+5. Validar un actor Apify con cap de gasto y normalizador real.
+6. Crear bookmarklet y después extensión Chrome/Firefox.
