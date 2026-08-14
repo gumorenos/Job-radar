@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -23,13 +23,22 @@ class ClaimedTask:
 
 
 def recover_stale_tasks(session: Session, stale_after_seconds: int) -> int:
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_after_seconds)
-    result = session.execute(
-        update(ProcessingTask)
-        .where(
-            ProcessingTask.status == TaskStatus.RUNNING,
-            ProcessingTask.locked_at < cutoff,
+    cutoff = datetime.now(UTC) - timedelta(seconds=stale_after_seconds)
+    stale_ids = list(
+        session.scalars(
+            select(ProcessingTask.id).where(
+                ProcessingTask.status == TaskStatus.RUNNING,
+                ProcessingTask.locked_at < cutoff,
+            )
         )
+    )
+    if not stale_ids:
+        session.rollback()
+        return 0
+
+    session.execute(
+        update(ProcessingTask)
+        .where(ProcessingTask.id.in_(stale_ids))
         .values(
             status=TaskStatus.PENDING,
             locked_at=None,
@@ -40,11 +49,11 @@ def recover_stale_tasks(session: Session, stale_after_seconds: int) -> int:
         )
     )
     session.commit()
-    return int(result.rowcount or 0)
+    return len(stale_ids)
 
 
 def claim_next_task(session: Session, worker_id: str) -> ClaimedTask | None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     task = session.scalar(
         select(ProcessingTask)
         .where(
@@ -89,7 +98,7 @@ def execute_task(session: Session, claimed: ClaimedTask) -> None:
         raise LookupError(f"Processing task {claimed.id} disappeared during execution.")
 
     task.status = TaskStatus.COMPLETED
-    task.completed_at = datetime.now(timezone.utc)
+    task.completed_at = datetime.now(UTC)
     task.locked_at = None
     task.locked_by = None
     session.commit()
@@ -108,12 +117,12 @@ def fail_task(session: Session, claimed: ClaimedTask, exc: Exception) -> None:
     task.error_message = str(exc)[:2000]
 
     if terminal:
-        task.completed_at = datetime.now(timezone.utc)
+        task.completed_at = datetime.now(UTC)
     else:
         task.started_at = None
         task.completed_at = None
         backoff_seconds = min(300, 2 ** max(1, claimed.attempt_count))
-        task.scheduled_at = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
+        task.scheduled_at = datetime.now(UTC) + timedelta(seconds=backoff_seconds)
 
     if terminal and claimed.entity_type == "ingestion_event":
         event = session.get(IngestionEvent, claimed.entity_id)
