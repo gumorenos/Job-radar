@@ -18,6 +18,7 @@ _INTERNATIONAL_REMOTE_TERMS = (
     "americas",
 )
 _LOCAL_TERMS = ("peru", "lima")
+_NON_MONTHLY_PERIOD_TERMS = ("hour", "hora", "day", "dia", "week", "semana")
 
 
 def _decimal_from_salary_token(value: str) -> Decimal | None:
@@ -58,7 +59,7 @@ def monthly_salary_pen(posting: JobPosting | None) -> Decimal | None:
             period = comparison_key(posting.salary_period)
             if period and any(term in period for term in ("year", "annual", "anual")):
                 return structured_amount / Decimal("12")
-            if period and any(term in period for term in ("hour", "hora", "day", "dia", "week", "semana")):
+            if period and any(term in period for term in _NON_MONTHLY_PERIOD_TERMS):
                 return None
             return structured_amount
 
@@ -66,9 +67,11 @@ def monthly_salary_pen(posting: JobPosting | None) -> Decimal | None:
     if not text:
         return None
     key = comparison_key(text) or ""
-    if not any(marker in key.split() for marker in _PEN_CURRENCY_KEYS if marker != "s"):
-        if "s/" not in text.lower():
-            return None
+    has_pen_word = any(
+        marker in key.split() for marker in _PEN_CURRENCY_KEYS if marker != "s"
+    )
+    if not has_pen_word and "s/" not in text.lower():
+        return None
 
     matches = re.findall(
         r"(?:s\s*/|pen|soles?)\s*([0-9][0-9.,]*)",
@@ -82,7 +85,7 @@ def monthly_salary_pen(posting: JobPosting | None) -> Decimal | None:
     amount = max(amounts)
     if any(term in key.split() for term in ("anual", "annual", "year", "yearly")):
         amount /= Decimal("12")
-    if any(term in key.split() for term in ("hora", "hour", "dia", "day", "semana", "week")):
+    if any(term in key.split() for term in _NON_MONTHLY_PERIOD_TERMS):
         return None
     return amount
 
