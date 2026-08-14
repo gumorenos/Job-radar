@@ -27,7 +27,7 @@ def get_session_factory() -> sessionmaker[Session]:
     )
 
 
-def get_session() -> Generator[Session, None, None]:
+def get_session() -> Generator[Session]:
     session = get_session_factory()()
     try:
         yield session
