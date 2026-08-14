@@ -29,7 +29,7 @@ class JobIngestionRequest(BaseModel):
     raw: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def require_minimum_identity(self) -> "JobIngestionRequest":
+    def require_minimum_identity(self) -> JobIngestionRequest:
         if not any((self.external_id, self.job.url, self.job.title)):
             raise ValueError("At least one of external_id, job.url, or job.title is required.")
         return self
