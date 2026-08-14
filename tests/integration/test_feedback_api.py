@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from app.db.enums import Classification, Confidence, FeedbackReason, JobStatus, WorkMode
 from app.db.models import CandidateProfile, ClassificationFeedback, Job, MatchAnalysis
@@ -98,9 +98,17 @@ def test_feedback_endpoint_preserves_system_classification_and_overrides_radar()
     assert payload["human_classification"] == "REVIEW"
     assert payload["reason_code"] == "TITLE"
     assert payload["comment"] == "El título necesita una revisión manual."
-    assert detail.json()["effective_classification"] == "REVIEW"
-    assert detail.json()["classification_source"] == "human"
-    assert detail.json()["latest_analysis"]["classification"] == "HIGH_PRIORITY"
+
+    detail_payload = detail.json()
+    assert detail_payload["effective_classification"] == "REVIEW"
+    assert detail_payload["classification_source"] == "human"
+    assert detail_payload["latest_analysis"]["classification"] == "HIGH_PRIORITY"
+    assert detail_payload["latest_feedback"]["system_classification"] == "HIGH_PRIORITY"
+    assert detail_payload["latest_feedback"]["human_classification"] == "REVIEW"
+    assert detail_payload["latest_feedback"]["reason_code"] == "TITLE"
+    assert detail_payload["latest_feedback"]["comment"] == (
+        "El título necesita una revisión manual."
+    )
 
     with get_session_factory()() as session:
         feedback = session.scalar(select(ClassificationFeedback))
@@ -108,6 +116,40 @@ def test_feedback_endpoint_preserves_system_classification_and_overrides_radar()
         assert feedback.system_classification == Classification.HIGH_PRIORITY
         assert feedback.human_classification == Classification.REVIEW
         assert feedback.reason_code == FeedbackReason.TITLE
+
+
+def test_new_feedback_becomes_effective_without_destroying_feedback_history() -> None:
+    job = _job_with_analysis()
+
+    with TestClient(app) as client:
+        first = client.post(
+            f"/api/v1/radar/jobs/{job.id}/feedback",
+            json={"human_classification": "REVIEW", "reason_code": "TITLE"},
+        )
+        second = client.post(
+            f"/api/v1/radar/jobs/{job.id}/feedback",
+            json={
+                "human_classification": "DISCARD",
+                "reason_code": "SALARY",
+                "comment": "No compensa para esta oportunidad.",
+            },
+        )
+        detail = client.get(f"/api/v1/radar/jobs/{job.id}")
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    detail_payload = detail.json()
+    assert detail_payload["effective_classification"] == "DISCARD"
+    assert detail_payload["latest_analysis"]["classification"] == "HIGH_PRIORITY"
+    assert detail_payload["latest_feedback"]["human_classification"] == "DISCARD"
+    assert detail_payload["latest_feedback"]["reason_code"] == "SALARY"
+
+    with get_session_factory()() as session:
+        count = session.scalar(select(func.count()).select_from(ClassificationFeedback))
+        assert count == 2
+        analyses = list(session.scalars(select(MatchAnalysis)))
+        assert len(analyses) == 1
+        assert analyses[0].classification == Classification.HIGH_PRIORITY
 
 
 def test_feedback_requires_a_system_classification() -> None:
