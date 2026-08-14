@@ -60,3 +60,6 @@ jobs:
 
       - name: Alembic upgrade
         run: uv run --locked alembic upgrade head
+
+      - name: Integration tests
+        run: uv run --locked pytest -q tests/integration
