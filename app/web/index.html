@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Radar</title>
+  <link rel="stylesheet" href="/app/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="brand">
+        <span class="brand-mark">JR</span>
+        <div>
+          <strong>Job Radar</strong>
+          <span>Personal job OS</span>
+        </div>
+      </div>
+
+      <nav class="primary-nav">
+        <a href="#/radar" data-route="radar"><span aria-hidden="true">◎</span> Radar</a>
+        <a href="#/applications" data-route="applications"><span aria-hidden="true">▣</span> Postulaciones</a>
+        <a href="#/cvs" data-route="cvs"><span aria-hidden="true">▤</span> CVs</a>
+        <a href="#/settings" data-route="settings"><span aria-hidden="true">⚙</span> Configuración</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Core conectado</span>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button class="mobile-nav" id="mobileNav" aria-label="Abrir navegación">☰</button>
+        <div>
+          <p class="eyebrow" id="eyebrow">Radar</p>
+          <h1 id="pageTitle">Oportunidades</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="secondary">Buscar</button>
+          <button class="icon-button" aria-label="Notificaciones">○</button>
+        </div>
+      </header>
+
+      <section class="view active" data-view="radar">
+        <div class="radar-layout">
+          <div class="radar-main">
+            <div class="summary-strip" aria-label="Resumen de clasificación">
+              <button class="summary-card active" data-radar-filter="high">
+                <span class="summary-value">—</span>
+                <span class="summary-label"><i class="signal high"></i> Alta prioridad</span>
+              </button>
+              <button class="summary-card" data-radar-filter="review">
+                <span class="summary-value">—</span>
+                <span class="summary-label"><i class="signal review"></i> Revisar</span>
+              </button>
+              <button class="summary-card" data-radar-filter="discarded">
+                <span class="summary-value">—</span>
+                <span class="summary-label"><i class="signal discarded"></i> Descartadas</span>
+              </button>
+              <button class="summary-card" data-radar-filter="duplicates">
+                <span class="summary-value">—</span>
+                <span class="summary-label"><i class="signal duplicate"></i> Posibles duplicados</span>
+              </button>
+            </div>
+
+            <div class="list-toolbar">
+              <div class="filter-tabs" role="tablist" aria-label="Clasificación">
+                <button class="tab active" data-radar-filter="high">Alta prioridad</button>
+                <button class="tab" data-radar-filter="review">Revisar</button>
+                <button class="tab" data-radar-filter="discarded">Descartadas</button>
+                <button class="tab" data-radar-filter="duplicates">Duplicados</button>
+              </div>
+              <div class="list-actions">
+                <input type="search" placeholder="Buscar puesto o empresa" aria-label="Buscar oportunidades">
+                <button class="secondary">Filtros</button>
+              </div>
+            </div>
+
+            <div class="opportunity-list" id="opportunityList">
+              <div class="empty-state">
+                <div class="empty-icon">◎</div>
+                <h2>Radar listo</h2>
+                <p>Las oportunidades procesadas por Job Radar aparecerán aquí. La navegación ya está separada de la configuración operativa.</p>
+              </div>
+            </div>
+          </div>
+
+          <aside class="detail-panel" id="detailPanel" aria-label="Detalle de oportunidad">
+            <button class="detail-close" id="detailClose" aria-label="Cerrar detalle">×</button>
+            <div class="detail-empty">
+              <span>Selecciona una oportunidad</span>
+              <p>El análisis, las brechas, el CV recomendado y las acciones aparecerán aquí sin sacarte de Radar.</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" data-view="applications">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">CRM</p>
+            <h2>Postulaciones</h2>
+            <p>El ciclo de postulación está separado de la clasificación de compatibilidad.</p>
+          </div>
+        </div>
+        <div class="stage-grid">
+          <article><strong>Para postular</strong><span>0</span></article>
+          <article><strong>Postuladas</strong><span>0</span></article>
+          <article><strong>Entrevistas</strong><span>0</span></article>
+          <article><strong>Ofertas</strong><span>0</span></article>
+          <article><strong>Cerradas</strong><span>0</span></article>
+        </div>
+        <div class="empty-state panel-empty">
+          <h3>Todavía no hay postulaciones</h3>
+          <p>Cuando decidas perseguir una oportunidad desde Radar, aparecerá aquí.</p>
+        </div>
+      </section>
+
+      <section class="view" data-view="cvs">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Perfil profesional</p>
+            <h2>CVs</h2>
+            <p>Versiones humanas y fáciles de reconocer. Markdown y JSON quedan fuera del flujo diario.</p>
+          </div>
+          <button class="primary">Añadir CV</button>
+        </div>
+        <div class="cv-grid">
+          <article class="cv-card base-card">
+            <span class="tag">Base</span>
+            <h3>CV Base</h3>
+            <p>La versión general del perfil.</p>
+            <button class="secondary">Abrir</button>
+          </article>
+          <article class="cv-card placeholder-card">
+            <span class="tag muted-tag">Especializado</span>
+            <h3>Tu próximo CV especializado</h3>
+            <p>HRBP, People Analytics, Onboarding, Compensaciones u otra ruta.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" data-view="settings">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Administración</p>
+            <h2>Configuración</h2>
+            <p>Los controles que no necesitas durante una revisión normal viven aquí.</p>
+          </div>
+        </div>
+        <div class="settings-list">
+          <button><span><strong>Perfil profesional</strong><small>Experiencia, skills y datos del candidato</small></span><b>›</b></button>
+          <button><span><strong>Preferencias de búsqueda</strong><small>Roles, ubicaciones, modalidad y salario</small></span><b>›</b></button>
+          <button><span><strong>Reglas</strong><small>Descartes automáticos, warnings y criterios</small></span><b>›</b></button>
+          <button><span><strong>Fuentes</strong><small>OpenClaw, email y futuras integraciones</small></span><b>›</b></button>
+          <button><span><strong>Notificaciones</strong><small>Telegram y resumen diario</small></span><b>›</b></button>
+          <button><span><strong>Avanzado</strong><small>Diagnóstico y controles técnicos</small></span><b>›</b></button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="prototype-note">Estructura de navegación · las vistas se conectarán progresivamente al API</div>
+  <script src="/app/app.js"></script>
+</body>
+</html>
