@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     storage_path: Path = Path("./storage")
     worker_poll_interval_seconds: float = 2.0
+    worker_stale_task_seconds: int = 900
+    reappearance_window_days: int = 30
 
 
 @lru_cache(maxsize=1)
