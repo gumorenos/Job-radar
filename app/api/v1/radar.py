@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import Select
 
 from app.db.enums import Classification, JobStatus
 from app.db.models import (
@@ -99,7 +100,7 @@ class RadarJobDetail(BaseModel):
     postings: list[RadarPosting]
 
 
-def _active_jobs_query():
+def _active_jobs_query() -> Select[tuple[Job]]:
     return select(Job).where(Job.status.in_((JobStatus.ACTIVE, JobStatus.UNKNOWN)))
 
 
@@ -184,17 +185,19 @@ def _item(session: Session, job: Job) -> RadarJobItem:
 
 @router.get("/summary", response_model=RadarSummary)
 def radar_summary(session: Session = Depends(get_session)) -> RadarSummary:
-    counts = {"high": 0, "review": 0, "discarded": 0, "duplicates": 0}
+    high = 0
+    review = 0
+    discarded = 0
     for job in session.scalars(_active_jobs_query()):
         classification, _, _ = _effective_classification(session, job.id)
         if classification == Classification.HIGH_PRIORITY:
-            counts["high"] += 1
+            high += 1
         elif classification == Classification.DISCARD:
-            counts["discarded"] += 1
+            discarded += 1
         else:
             # Until an analysis exists, an active job belongs in the human review queue.
-            counts["review"] += 1
-    return RadarSummary(**counts)
+            review += 1
+    return RadarSummary(high=high, review=review, discarded=discarded, duplicates=0)
 
 
 @router.get("/jobs", response_model=RadarJobList)
