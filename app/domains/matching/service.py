@@ -6,11 +6,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.enums import Classification, Confidence
+from app.db.enums import Classification, Confidence, TaskStatus, TaskType
 from app.db.models import CandidateProfile, Company, Job, JobPosting, MatchAnalysis, ProcessingTask
-from app.db.enums import TaskStatus, TaskType
 from app.domains.matching.facts import is_international_remote, monthly_salary_pen
-from app.domains.matching.rules import MatchingRuleInput, MatchingRulePolicy, evaluate_business_rules
+from app.domains.matching.rules import (
+    MatchingRuleInput,
+    MatchingRulePolicy,
+    RuleResult,
+    evaluate_business_rules,
+)
 
 ANALYZER_VERSION = "rules-v1"
 
@@ -84,22 +88,16 @@ def _company_industry(session: Session, job: Job) -> str | None:
     return company.industry if company is not None else None
 
 
-def _rule_payload(evaluation_results: tuple[object, ...]) -> list[dict[str, object]]:
-    payload: list[dict[str, object]] = []
-    for item in evaluation_results:
-        code = getattr(item, "code")
-        passed = getattr(item, "passed")
-        severity = getattr(item, "severity")
-        message = getattr(item, "message")
-        payload.append(
-            {
-                "code": str(code),
-                "passed": bool(passed),
-                "severity": str(severity),
-                "message": str(message),
-            }
-        )
-    return payload
+def _rule_payload(evaluation_results: tuple[RuleResult, ...]) -> list[dict[str, object]]:
+    return [
+        {
+            "code": item.code,
+            "passed": item.passed,
+            "severity": item.severity,
+            "message": item.message,
+        }
+        for item in evaluation_results
+    ]
 
 
 def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
@@ -137,7 +135,9 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
 
     rule_items = _rule_payload(evaluation.results)
     hard_messages = [item["message"] for item in rule_items if item["severity"] == "HARD"]
-    warning_messages = [item["message"] for item in rule_items if item["severity"] == "WARNING"]
+    warning_messages = [
+        item["message"] for item in rule_items if item["severity"] == "WARNING"
+    ]
     if hard_messages:
         explanation = " ".join(str(message) for message in hard_messages)
     elif warning_messages:
