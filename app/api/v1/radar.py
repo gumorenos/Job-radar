@@ -83,6 +83,16 @@ class RadarAnalysis(BaseModel):
     created_at: datetime
 
 
+class RadarFeedback(BaseModel):
+    id: UUID
+    match_analysis_id: UUID
+    system_classification: str
+    human_classification: str
+    reason_code: str
+    comment: str | None
+    created_at: datetime
+
+
 class RadarJobDetail(BaseModel):
     id: UUID
     title: str
@@ -99,6 +109,7 @@ class RadarJobDetail(BaseModel):
     effective_classification: str | None
     classification_source: str
     latest_analysis: RadarAnalysis | None
+    latest_feedback: RadarFeedback | None
     postings: list[RadarPosting]
 
 
@@ -251,6 +262,7 @@ def get_radar_job(job_id: UUID, session: SessionDep) -> RadarJobDetail:
         raise HTTPException(status_code=404, detail="Job not found.")
 
     classification, source, analysis = _effective_classification(session, job.id)
+    feedback = _latest_feedback(session, job.id)
     postings = list(
         session.scalars(
             select(JobPosting)
@@ -279,6 +291,18 @@ def get_radar_job(job_id: UUID, session: SessionDep) -> RadarJobDetail:
             created_at=analysis.created_at,
         )
 
+    feedback_payload = None
+    if feedback is not None:
+        feedback_payload = RadarFeedback(
+            id=feedback.id,
+            match_analysis_id=feedback.match_analysis_id,
+            system_classification=feedback.system_classification.value,
+            human_classification=feedback.human_classification.value,
+            reason_code=feedback.reason_code.value,
+            comment=feedback.comment,
+            created_at=feedback.created_at,
+        )
+
     return RadarJobDetail(
         id=job.id,
         title=job.canonical_title or (postings[0].title_raw if postings else None) or "Sin título",
@@ -295,6 +319,7 @@ def get_radar_job(job_id: UUID, session: SessionDep) -> RadarJobDetail:
         effective_classification=classification.value if classification else None,
         classification_source=source,
         latest_analysis=analysis_payload,
+        latest_feedback=feedback_payload,
         postings=[
             RadarPosting(
                 source=posting.posting_source,
