@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -56,7 +56,7 @@ def accept_job_ingestion(
                 received_at=existing.received_at,
             )
 
-    received_at = datetime.now(timezone.utc)
+    received_at = datetime.now(UTC)
     ingestion = IngestionEvent(
         ingestion_source=payload.ingestion_source,
         posting_source=payload.posting_source,
