@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+from typing import Annotated
 
 from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -11,7 +12,7 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 def require_api_key(
-    credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
 ) -> None:
     """Validate the integration API key using Authorization: Bearer <token>."""
 
