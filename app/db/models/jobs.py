@@ -4,7 +4,17 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -25,7 +35,11 @@ class Company(TimestampMixin, Base):
     linkedin_url: Mapped[str | None] = mapped_column(Text)
     industry: Mapped[str | None] = mapped_column(String(200))
     country: Mapped[str | None] = mapped_column(String(100))
-    is_confidential_placeholder: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_confidential_placeholder: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
 
 
 class Job(TimestampMixin, Base):
