@@ -7,7 +7,14 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from app.db.enums import Classification, Confidence, FeedbackReason, JobStatus, PostingStatus, WorkMode
+from app.db.enums import (
+    Classification,
+    Confidence,
+    FeedbackReason,
+    JobStatus,
+    PostingStatus,
+    WorkMode,
+)
 from app.db.models import (
     CandidateProfile,
     ClassificationFeedback,
