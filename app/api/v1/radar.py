@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,6 +24,7 @@ from app.db.session import get_session
 router = APIRouter(prefix="/api/v1/radar", tags=["radar"])
 
 RadarView = Literal["high", "review", "discarded", "duplicates"]
+SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class RadarSummary(BaseModel):
@@ -151,6 +153,19 @@ def _latest_posting(session: Session, job_id: UUID) -> JobPosting | None:
     )
 
 
+def _safe_posting_url(posting: JobPosting) -> str | None:
+    value = posting.canonical_url or posting.source_url_raw
+    if not value:
+        return None
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        return None
+    return value
+
+
 def _matches_view(classification: Classification | None, view: RadarView) -> bool:
     if view == "high":
         return classification == Classification.HIGH_PRIORITY
@@ -158,7 +173,7 @@ def _matches_view(classification: Classification | None, view: RadarView) -> boo
         return classification in (None, Classification.REVIEW)
     if view == "discarded":
         return classification == Classification.DISCARD
-    # Possible-duplicate review is not implemented yet. Exact duplicates are merged during ingestion.
+    # Uncertain duplicate review is a later workflow; exact duplicates already merge on ingestion.
     return False
 
 
@@ -178,13 +193,13 @@ def _item(session: Session, job: Job) -> RadarJobItem:
         confidence=analysis.confidence.value if analysis and analysis.confidence else None,
         salary_text=posting.salary_text if posting is not None else None,
         posting_source=posting.posting_source if posting is not None else None,
-        source_url=(posting.canonical_url or posting.source_url_raw) if posting is not None else None,
+        source_url=_safe_posting_url(posting) if posting is not None else None,
         last_seen_at=job.last_seen_at,
     )
 
 
 @router.get("/summary", response_model=RadarSummary)
-def radar_summary(session: Session = Depends(get_session)) -> RadarSummary:
+def radar_summary(session: SessionDep) -> RadarSummary:
     high = 0
     review = 0
     discarded = 0
@@ -202,10 +217,10 @@ def radar_summary(session: Session = Depends(get_session)) -> RadarSummary:
 
 @router.get("/jobs", response_model=RadarJobList)
 def list_radar_jobs(
+    session: SessionDep,
     view: RadarView = "high",
     q: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=100, ge=1, le=200),
-    session: Session = Depends(get_session),
 ) -> RadarJobList:
     query = _active_jobs_query().order_by(Job.last_seen_at.desc())
     if q and q.strip():
@@ -230,7 +245,7 @@ def list_radar_jobs(
 
 
 @router.get("/jobs/{job_id}", response_model=RadarJobDetail)
-def get_radar_job(job_id: UUID, session: Session = Depends(get_session)) -> RadarJobDetail:
+def get_radar_job(job_id: UUID, session: SessionDep) -> RadarJobDetail:
     job = session.get(Job, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -283,7 +298,7 @@ def get_radar_job(job_id: UUID, session: Session = Depends(get_session)) -> Rada
         postings=[
             RadarPosting(
                 source=posting.posting_source,
-                url=posting.canonical_url or posting.source_url_raw,
+                url=_safe_posting_url(posting),
                 salary_text=posting.salary_text,
                 published_at=posting.published_at,
                 first_seen_at=posting.first_seen_at,
