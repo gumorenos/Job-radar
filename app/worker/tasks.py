@@ -8,8 +8,9 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.db.enums import IngestionStatus, TaskStatus, TaskType
-from app.db.models import IngestionEvent, ProcessingTask
+from app.db.models import IngestionEvent, JobPosting, ProcessingTask
 from app.domains.ingestion.processor import normalize_ingestion_event
+from app.domains.matching.service import analyze_job, enqueue_job_analysis
 
 
 @dataclass(frozen=True)
@@ -89,7 +90,13 @@ def claim_next_task(session: Session, worker_id: str) -> ClaimedTask | None:
 
 def execute_task(session: Session, claimed: ClaimedTask) -> None:
     if claimed.task_type == TaskType.NORMALIZE_INGESTION:
-        normalize_ingestion_event(session, claimed.entity_id)
+        posting_id = normalize_ingestion_event(session, claimed.entity_id)
+        posting = session.get(JobPosting, posting_id)
+        if posting is None:
+            raise LookupError(f"Job posting {posting_id} disappeared after normalization.")
+        enqueue_job_analysis(session, posting.job_id)
+    elif claimed.task_type == TaskType.ANALYZE_MATCH:
+        analyze_job(session, claimed.entity_id)
     else:
         raise NotImplementedError(f"Unsupported task type: {claimed.task_type}")
 
