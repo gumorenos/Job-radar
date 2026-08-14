@@ -39,7 +39,7 @@
           <h1 id="pageTitle">Oportunidades</h1>
         </div>
         <div class="topbar-actions">
-          <button class="secondary">Buscar</button>
+          <button class="secondary" id="focusSearch">Buscar</button>
           <button class="icon-button" aria-label="Notificaciones">○</button>
         </div>
       </header>
@@ -49,19 +49,19 @@
           <div class="radar-main">
             <div class="summary-strip" aria-label="Resumen de clasificación">
               <button class="summary-card active" data-radar-filter="high">
-                <span class="summary-value">—</span>
+                <span class="summary-value" data-summary-value="high">—</span>
                 <span class="summary-label"><i class="signal high"></i> Alta prioridad</span>
               </button>
               <button class="summary-card" data-radar-filter="review">
-                <span class="summary-value">—</span>
+                <span class="summary-value" data-summary-value="review">—</span>
                 <span class="summary-label"><i class="signal review"></i> Revisar</span>
               </button>
               <button class="summary-card" data-radar-filter="discarded">
-                <span class="summary-value">—</span>
+                <span class="summary-value" data-summary-value="discarded">—</span>
                 <span class="summary-label"><i class="signal discarded"></i> Descartadas</span>
               </button>
               <button class="summary-card" data-radar-filter="duplicates">
-                <span class="summary-value">—</span>
+                <span class="summary-value" data-summary-value="duplicates">—</span>
                 <span class="summary-label"><i class="signal duplicate"></i> Posibles duplicados</span>
               </button>
             </div>
@@ -75,15 +75,14 @@
               </div>
               <div class="list-actions">
                 <input id="opportunitySearch" name="opportunity_search" type="search" placeholder="Buscar puesto o empresa" aria-label="Buscar oportunidades">
-                <button class="secondary">Filtros</button>
               </div>
             </div>
 
-            <div class="opportunity-list" id="opportunityList">
+            <div class="opportunity-list" id="opportunityList" aria-live="polite">
               <div class="empty-state">
                 <div class="empty-icon">◎</div>
-                <h2>Radar listo</h2>
-                <p>Las oportunidades procesadas por Job Radar aparecerán aquí. La navegación ya está separada de la configuración operativa.</p>
+                <h2>Cargando Radar</h2>
+                <p>Buscando oportunidades procesadas por Job Radar.</p>
               </div>
             </div>
           </div>
@@ -92,7 +91,7 @@
             <button class="detail-close" id="detailClose" aria-label="Cerrar detalle">×</button>
             <div class="detail-empty">
               <span>Selecciona una oportunidad</span>
-              <p>El análisis, las brechas, el CV recomendado y las acciones aparecerán aquí sin sacarte de Radar.</p>
+              <p>El análisis, las brechas y las fuentes aparecerán aquí sin sacarte de Radar.</p>
             </div>
           </aside>
         </div>
@@ -163,7 +162,7 @@
     </main>
   </div>
 
-  <div class="prototype-note">Estructura de navegación · las vistas se conectarán progresivamente al API</div>
+  <div class="prototype-note">Radar conectado · CRM, CVs y Configuración se habilitarán progresivamente</div>
   <script src="/app/app.js"></script>
 </body>
 </html>
