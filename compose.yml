@@ -1,0 +1,63 @@
+name: job-radar
+
+x-app: &app
+  build:
+    context: .
+  image: job-radar:local
+  restart: unless-stopped
+  environment:
+    JOB_RADAR_APP_ENV: ${JOB_RADAR_APP_ENV:-development}
+    JOB_RADAR_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-job_radar}:${POSTGRES_PASSWORD:-job_radar_dev}@postgres:5432/${POSTGRES_DB:-job_radar}
+    JOB_RADAR_API_KEY: ${JOB_RADAR_API_KEY:-dev-only-change-me}
+    JOB_RADAR_LOG_LEVEL: ${JOB_RADAR_LOG_LEVEL:-INFO}
+    JOB_RADAR_STORAGE_PATH: /app/storage
+    JOB_RADAR_WORKER_POLL_INTERVAL_SECONDS: ${JOB_RADAR_WORKER_POLL_INTERVAL_SECONDS:-2}
+  volumes:
+    - ${JOB_RADAR_STORAGE_PATH_HOST:-./storage}:/app/storage
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-job_radar}
+      POSTGRES_USER: ${POSTGRES_USER:-job_radar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-job_radar_dev}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - job_radar_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-job_radar} -d ${POSTGRES_DB:-job_radar}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    <<: *app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:${JOB_RADAR_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "app.worker.main"]
+
+volumes:
+  job_radar_postgres_data:
