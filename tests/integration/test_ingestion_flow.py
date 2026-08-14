@@ -7,14 +7,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.enums import IngestionStatus, TaskStatus
 from app.db.models import Company, IngestionEvent, Job, JobPosting, PostingSighting, ProcessingTask
 from app.db.session import get_engine, get_session_factory
 from app.main import app
 from app.worker.tasks import claim_next_task, execute_task
 
-_API_KEY = "ci-only-test-key"
-_AUTH_HEADERS = {"Authorization": f"Bearer {_API_KEY}"}
+
+def _auth_headers() -> dict[str, str]:
+    api_key = get_settings().api_key.get_secret_value()
+    return {"Authorization": f"Bearer {api_key}"}
 
 
 def _truncate_database() -> None:
@@ -82,7 +85,7 @@ def test_ingestion_is_idempotent_and_deduplicates_by_normalized_url() -> None:
     with TestClient(app) as client:
         first = client.post(
             "/api/v1/ingestions/jobs",
-            headers={**_AUTH_HEADERS, "Idempotency-Key": "qa-job-001"},
+            headers={**_auth_headers(), "Idempotency-Key": "qa-job-001"},
             json=payload,
         )
         assert first.status_code == 202
@@ -109,7 +112,7 @@ def test_ingestion_is_idempotent_and_deduplicates_by_normalized_url() -> None:
 
         replay = client.post(
             "/api/v1/ingestions/jobs",
-            headers={**_AUTH_HEADERS, "Idempotency-Key": "qa-job-001"},
+            headers={**_auth_headers(), "Idempotency-Key": "qa-job-001"},
             json=payload,
         )
         assert replay.status_code == 202
@@ -124,7 +127,7 @@ def test_ingestion_is_idempotent_and_deduplicates_by_normalized_url() -> None:
         changed_payload = {**payload, "job": {**payload["job"], "title": "Modified title"}}
         conflict = client.post(
             "/api/v1/ingestions/jobs",
-            headers={**_AUTH_HEADERS, "Idempotency-Key": "qa-job-001"},
+            headers={**_auth_headers(), "Idempotency-Key": "qa-job-001"},
             json=changed_payload,
         )
         assert conflict.status_code == 409
@@ -139,7 +142,7 @@ def test_ingestion_is_idempotent_and_deduplicates_by_normalized_url() -> None:
         }
         duplicate = client.post(
             "/api/v1/ingestions/jobs",
-            headers={**_AUTH_HEADERS, "Idempotency-Key": "qa-job-002"},
+            headers={**_auth_headers(), "Idempotency-Key": "qa-job-002"},
             json=duplicate_payload,
         )
         assert duplicate.status_code == 202
@@ -167,7 +170,7 @@ def test_confidential_company_does_not_create_placeholder_company() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/ingestions/jobs",
-            headers={**_AUTH_HEADERS, "Idempotency-Key": "qa-job-confidential"},
+            headers={**_auth_headers(), "Idempotency-Key": "qa-job-confidential"},
             json=payload,
         )
         assert response.status_code == 202
@@ -186,7 +189,7 @@ def test_minimal_payload_is_accepted_and_invalid_payload_is_rejected() -> None:
     with TestClient(app) as client:
         minimal = client.post(
             "/api/v1/ingestions/jobs",
-            headers={**_AUTH_HEADERS, "Idempotency-Key": "qa-job-minimal"},
+            headers={**_auth_headers(), "Idempotency-Key": "qa-job-minimal"},
             json={
                 "ingestion_source": "openclaw",
                 "posting_source": "email",
@@ -198,7 +201,7 @@ def test_minimal_payload_is_accepted_and_invalid_payload_is_rejected() -> None:
 
         invalid = client.post(
             "/api/v1/ingestions/jobs",
-            headers=_AUTH_HEADERS,
+            headers=_auth_headers(),
             json={"ingestion_source": "openclaw", "job": {}},
         )
         assert invalid.status_code == 422
