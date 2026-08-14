@@ -1,0 +1,96 @@
+.list-loading,
+.detail-loading {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.opportunity-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  padding: 15px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  text-align: left;
+  color: var(--ink);
+}
+.opportunity-row:last-child { border-bottom: 0; }
+.opportunity-row:hover,
+.opportunity-row:focus-visible { background: var(--panel-soft); outline: none; }
+.opportunity-body { min-width: 0; display: grid; gap: 4px; }
+.opportunity-body > strong { font-size: 15px; line-height: 1.3; }
+.opportunity-heading { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; flex-wrap: wrap; }
+.opportunity-company { color: #38445a; font-size: 13px; font-weight: 620; }
+.opportunity-body small,
+.opportunity-side small { color: var(--muted); font-size: 11px; }
+.opportunity-side { min-width: 118px; display: grid; justify-items: end; gap: 5px; color: var(--muted); font-size: 11px; }
+.opportunity-side b { font-size: 22px; font-weight: 400; color: #a3acba; }
+
+.classification-pill,
+.score-badge {
+  display: inline-flex;
+  width: max-content;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 760;
+}
+.classification-pill.high { color: var(--high); background: #eaf8f2; }
+.classification-pill.review { color: var(--review); background: #fff4df; }
+.classification-pill.discarded { color: var(--discarded); background: #f0f2f5; }
+.classification-pill.pending { color: #5e6675; background: #f0f2f5; }
+.score-badge { color: #2947ba; background: var(--accent-soft); }
+
+.detail-header { padding-bottom: 17px; border-bottom: 1px solid var(--line); }
+.detail-header h2 { margin: 4px 0 5px; font-size: 21px; line-height: 1.25; }
+.detail-company { margin: 0; font-weight: 680; color: #38445a; }
+.detail-meta { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.detail-actions { margin-top: 13px; display: flex; gap: 8px; }
+.detail-link { text-decoration: none; display: inline-flex; align-items: center; }
+
+.analysis-summary { padding: 17px 0; border-bottom: 1px solid var(--line); }
+.analysis-summary > div { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.analysis-summary > div > strong { font-size: 26px; margin-left: auto; }
+.analysis-summary > div > strong small { font-size: 12px; }
+.analysis-summary > div > span:last-child { width: 100%; color: var(--muted); font-size: 11px; }
+.analysis-summary > p { margin: 11px 0 0; font-size: 13px; line-height: 1.55; }
+
+.detail-section { padding: 15px 0; border-bottom: 1px solid var(--line); }
+.detail-section:last-child { border-bottom: 0; }
+.detail-section h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .045em; }
+.detail-section p { margin: 0; font-size: 13px; line-height: 1.55; }
+.detail-muted { color: var(--muted); }
+.detail-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12px; line-height: 1.45; }
+.pending-analysis { background: #fffaf1; margin: 14px -8px 0; padding: 13px 8px; border-radius: 7px; border-bottom: 0; }
+.pending-analysis p { color: #76501a; }
+.description-text { white-space: pre-line; max-height: 260px; overflow: auto; padding-right: 4px; }
+
+.source-list { display: grid; gap: 7px; }
+.source-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 11px;
+}
+.source-list span { color: var(--muted); }
+.source-list a { color: var(--accent); text-decoration: none; font-weight: 680; }
+.error-state h2 { color: #9d2f2f; }
+
+@media (max-width: 760px) {
+  .opportunity-row { align-items: flex-start; padding: 14px 12px; }
+  .opportunity-side { min-width: 72px; }
+  .opportunity-side > span { display: none; }
+  .detail-panel { overflow-y: auto; }
+  .source-list > div { grid-template-columns: minmax(0, 1fr) auto; }
+  .source-list span { display: none; }
+}
