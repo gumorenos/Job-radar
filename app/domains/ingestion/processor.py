@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -192,7 +192,7 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> UUID:
             posting_job.last_seen_at = event.received_at
         _record_sighting(session, event, posting)
         event.status = IngestionStatus.COMPLETED
-        event.processed_at = datetime.now(timezone.utc)
+        event.processed_at = datetime.now(UTC)
         return posting.id
 
     company, is_confidential = _company_for(session, company_raw)
@@ -231,5 +231,5 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> UUID:
     _record_sighting(session, event, posting)
 
     event.status = IngestionStatus.COMPLETED
-    event.processed_at = datetime.now(timezone.utc)
+    event.processed_at = datetime.now(UTC)
     return posting.id
