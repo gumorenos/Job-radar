@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+
+WEB_DIR = Path(__file__).resolve().parent / "web"
 
 
 @asynccontextmanager
@@ -26,3 +30,4 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(api_router)
+app.mount("/app", StaticFiles(directory=WEB_DIR, html=True), name="web")
