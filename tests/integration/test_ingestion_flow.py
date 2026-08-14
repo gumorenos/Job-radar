@@ -8,7 +8,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.enums import IngestionStatus, TaskStatus
+from app.db.enums import IngestionStatus, TaskStatus, TaskType
 from app.db.models import Company, IngestionEvent, Job, JobPosting, PostingSighting, ProcessingTask
 from app.db.session import get_engine, get_session_factory
 from app.main import app
@@ -101,12 +101,21 @@ def test_ingestion_is_idempotent_and_deduplicates_by_normalized_url() -> None:
 
             event = session.scalar(select(IngestionEvent))
             posting = session.scalar(select(JobPosting))
-            task = session.scalar(select(ProcessingTask))
+            normalize_task = session.scalar(
+                select(ProcessingTask).where(
+                    ProcessingTask.task_type == TaskType.NORMALIZE_INGESTION
+                )
+            )
+            analysis_task = session.scalar(
+                select(ProcessingTask).where(ProcessingTask.task_type == TaskType.ANALYZE_MATCH)
+            )
             assert event is not None
             assert posting is not None
-            assert task is not None
+            assert normalize_task is not None
+            assert analysis_task is not None
             assert event.status == IngestionStatus.COMPLETED
-            assert task.status == TaskStatus.COMPLETED
+            assert normalize_task.status == TaskStatus.COMPLETED
+            assert analysis_task.status == TaskStatus.PENDING
             assert event.raw_payload["unexpected_future_field"] == {"must_be_preserved": True}
             assert posting.source_url_normalized == "https://example.com/jobs/123"
 
