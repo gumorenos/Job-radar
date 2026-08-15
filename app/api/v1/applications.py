@@ -15,6 +15,7 @@ from app.db.session import get_session
 
 router = APIRouter(prefix="/api/v1/applications", tags=["applications"])
 SessionDep = Annotated[Session, Depends(get_session)]
+ApplicationRow = tuple[JobApplication, Job, Company | None]
 
 
 class ApplicationItem(BaseModel):
@@ -75,22 +76,30 @@ def _item(application: JobApplication, job: Job, company: Company | None) -> App
     )
 
 
-def _application_row(session: Session, application_id: UUID):
-    return session.execute(
+def _application_row(session: Session, application_id: UUID) -> ApplicationRow | None:
+    row = session.execute(
         select(JobApplication, Job, Company)
         .join(Job, JobApplication.job_id == Job.id)
         .outerjoin(Company, Job.company_id == Company.id)
         .where(JobApplication.id == application_id)
     ).one_or_none()
+    if row is None:
+        return None
+    application, job, company = row
+    return application, job, company
 
 
-def _application_for_job(session: Session, job_id: UUID):
-    return session.execute(
+def _application_for_job(session: Session, job_id: UUID) -> ApplicationRow | None:
+    row = session.execute(
         select(JobApplication, Job, Company)
         .join(Job, JobApplication.job_id == Job.id)
         .outerjoin(Company, Job.company_id == Company.id)
         .where(JobApplication.job_id == job_id)
     ).one_or_none()
+    if row is None:
+        return None
+    application, job, company = row
+    return application, job, company
 
 
 @router.get("/summary", response_model=ApplicationSummary)
