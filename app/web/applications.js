@@ -1,0 +1,178 @@
+const applicationStageLabels = {
+  TO_APPLY: "Para postular",
+  APPLIED: "Postulada",
+  INTERVIEW: "Entrevista",
+  OFFER: "Oferta",
+  CLOSED: "Cerrada",
+};
+
+let applicationStage = "TO_APPLY";
+const applicationsList = document.getElementById("applicationsList");
+
+async function applicationRequest(path, options = {}) {
+  const headers = { Accept: "application/json", ...(options.headers || {}) };
+  const response = await fetch(path, { ...options, headers });
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const payload = await response.json();
+      if (payload.detail) message = payload.detail;
+    } catch (_) {
+      // Keep the HTTP status when no JSON body is available.
+    }
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
+  return response.json();
+}
+
+function setApplicationStage(stage, { reload = true } = {}) {
+  applicationStage = stage;
+  document.querySelectorAll("[data-application-stage]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.applicationStage === stage);
+  });
+  if (reload) loadApplications();
+}
+
+function renderApplicationSummary(summary) {
+  Object.entries(summary).forEach(([key, value]) => {
+    const element = document.querySelector(`[data-application-count="${key}"]`);
+    if (element) element.textContent = value;
+  });
+}
+
+function renderApplications(items) {
+  if (!items.length) {
+    applicationsList.innerHTML = `
+      <div class="empty-state panel-empty">
+        <h3>Sin ${escapeHtml(applicationStageLabels[applicationStage].toLowerCase())}</h3>
+        <p>Las oportunidades que decidas perseguir desde Radar aparecerán aquí.</p>
+      </div>`;
+    return;
+  }
+
+  applicationsList.innerHTML = `
+    <div class="application-table">
+      ${items.map((item) => `
+        <article class="application-row" data-application-id="${item.id}">
+          <div class="application-copy">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${escapeHtml(item.company || "Empresa no indicada")}</span>
+            <small>${escapeHtml(item.location || "Ubicación no indicada")}${item.applied_at ? ` · Postulada ${formatDate(item.applied_at)}` : ""}</small>
+          </div>
+          <label class="application-stage-control">
+            <span>Etapa</span>
+            <select data-stage-select="${item.id}" aria-label="Etapa de ${escapeHtml(item.title)}">
+              ${Object.entries(applicationStageLabels).map(([value, label]) => `
+                <option value="${value}" ${value === item.stage ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </label>
+        </article>`).join("")}
+    </div>`;
+
+  document.querySelectorAll("[data-stage-select]").forEach((select) => {
+    select.addEventListener("change", () => updateApplicationStage(select.dataset.stageSelect, select.value, select));
+  });
+}
+
+async function loadApplicationSummary() {
+  renderApplicationSummary(await applicationRequest("/api/v1/applications/summary"));
+}
+
+async function loadApplicationList() {
+  applicationsList.innerHTML = `<div class="applications-loading">Cargando postulaciones…</div>`;
+  try {
+    const result = await applicationRequest(`/api/v1/applications?stage=${applicationStage}`);
+    renderApplications(result.items);
+  } catch (error) {
+    applicationsList.innerHTML = `
+      <div class="empty-state panel-empty error-state">
+        <h3>No se pudieron cargar las postulaciones</h3>
+        <p>${escapeHtml(error.message)}</p>
+      </div>`;
+  }
+}
+
+async function loadApplications() {
+  if (currentRoute() !== "applications") return;
+  await Promise.all([loadApplicationSummary(), loadApplicationList()]);
+}
+
+async function updateApplicationStage(applicationId, stage, select) {
+  select.disabled = true;
+  try {
+    await applicationRequest(`/api/v1/applications/${applicationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage }),
+    });
+    await Promise.all([loadApplicationSummary(), loadApplicationList()]);
+  } catch (error) {
+    select.disabled = false;
+    window.alert(`No se pudo actualizar la etapa: ${error.message}`);
+  }
+}
+
+async function syncRadarApplicationAction() {
+  const form = detailPanel.querySelector("#feedbackForm");
+  const actions = detailPanel.querySelector(".detail-actions");
+  if (!form || !actions || actions.querySelector("[data-application-action]")) return;
+
+  const jobId = form.dataset.jobId;
+  if (!jobId) return;
+
+  let existing = null;
+  try {
+    existing = await applicationRequest(`/api/v1/applications/by-job/${jobId}`);
+  } catch (error) {
+    if (error.status !== 404) return;
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.applicationAction = jobId;
+  button.className = existing ? "secondary" : "primary";
+  button.textContent = existing
+    ? `En Postulaciones · ${applicationStageLabels[existing.stage]}`
+    : "Añadir a postulaciones";
+
+  button.addEventListener("click", async () => {
+    if (existing) {
+      setApplicationStage(existing.stage, { reload: false });
+      window.location.hash = "#/applications";
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Añadiendo…";
+    try {
+      const result = await applicationRequest(`/api/v1/applications/jobs/${jobId}`, { method: "POST" });
+      existing = result.application;
+      button.disabled = false;
+      button.className = "secondary";
+      button.textContent = `En Postulaciones · ${applicationStageLabels[existing.stage]}`;
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "No se pudo añadir";
+      button.title = error.message;
+    }
+  });
+
+  actions.appendChild(button);
+}
+
+document.querySelectorAll("[data-application-stage]").forEach((button) => {
+  button.addEventListener("click", () => setApplicationStage(button.dataset.applicationStage));
+});
+
+const applicationDetailObserver = new MutationObserver(() => {
+  syncRadarApplicationAction();
+});
+applicationDetailObserver.observe(detailPanel, { childList: true, subtree: true });
+
+window.addEventListener("hashchange", () => {
+  if (currentRoute() === "applications") loadApplications();
+});
+
+if (currentRoute() === "applications") loadApplications();
