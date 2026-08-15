@@ -179,7 +179,9 @@ def update_application(
         application.closed_at = now if payload.stage == ApplicationStage.CLOSED else None
 
     if "notes" in payload.model_fields_set:
-        application.notes = payload.notes.strip() if payload.notes and payload.notes.strip() else None
+        application.notes = (
+            payload.notes.strip() if payload.notes and payload.notes.strip() else None
+        )
 
     session.commit()
     row = _application_row(session, application_id)
