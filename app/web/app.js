@@ -12,6 +12,17 @@ const filterLabels = {
   duplicates: "Posibles duplicados",
 };
 
+const feedbackReasonLabels = {
+  SALARY: "Salario",
+  SENIORITY: "Seniority",
+  SKILLS: "Skills",
+  LOCATION: "Ubicación",
+  INDUSTRY: "Industria",
+  DEGREE: "Grado / carrera",
+  TITLE: "Título del puesto",
+  OTHER: "Otro",
+};
+
 const sidebar = document.querySelector(".sidebar");
 const detailPanel = document.getElementById("detailPanel");
 const opportunityList = document.getElementById("opportunityList");
@@ -46,10 +57,18 @@ function formatDate(value) {
   }).format(date);
 }
 
-async function api(path) {
-  const response = await fetch(path, { headers: { Accept: "application/json" } });
+async function api(path, options = {}) {
+  const headers = { Accept: "application/json", ...(options.headers || {}) };
+  const response = await fetch(path, { ...options, headers });
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const payload = await response.json();
+      if (payload.detail) message = payload.detail;
+    } catch (_) {
+      // Preserve the HTTP status when the response body is not JSON.
+    }
+    throw new Error(message);
   }
   return response.json();
 }
@@ -126,12 +145,16 @@ function renderJobs(items) {
     const score = item.score === null || item.score === undefined
       ? ""
       : `<span class="score-badge">${item.score}% match</span>`;
+    const human = item.classification_source === "human"
+      ? `<span class="human-badge">Corregida</span>`
+      : "";
 
     return `
       <button class="opportunity-row" data-job-id="${item.id}">
         <div class="opportunity-body">
           <div class="opportunity-heading">
             <span class="classification-pill ${classification.className}">${classification.label}</span>
+            ${human}
             ${score}
           </div>
           <strong>${escapeHtml(item.title)}</strong>
@@ -193,6 +216,69 @@ function renderAnalysis(analysis) {
       <section class="detail-section"><h3>Salario</h3><p>${escapeHtml(analysis.salary_assessment)}</p></section>` : ""}`;
 }
 
+function renderFeedback(detail) {
+  if (!detail.latest_analysis || !detail.latest_analysis.classification) {
+    return `
+      <section class="detail-section feedback-section">
+        <h3>Tu decisión</h3>
+        <p class="detail-muted">Podrás corregir la clasificación cuando exista un análisis del sistema.</p>
+      </section>`;
+  }
+
+  const feedback = detail.latest_feedback;
+  const currentClassification = feedback?.human_classification || detail.effective_classification || "REVIEW";
+  const currentReason = feedback?.reason_code || "OTHER";
+  const currentComment = feedback?.comment || "";
+  const currentPresentation = classificationPresentation({ classification: currentClassification });
+  const existing = feedback ? `
+    <div class="feedback-current">
+      <div>
+        <span class="classification-pill ${currentPresentation.className}">${currentPresentation.label}</span>
+        <strong>Decisión humana vigente</strong>
+      </div>
+      <p>${escapeHtml(feedbackReasonLabels[feedback.reason_code] || feedback.reason_code)}${feedback.comment ? ` · ${escapeHtml(feedback.comment)}` : ""}</p>
+      <small>Guardada ${formatDate(feedback.created_at)}. El análisis original del sistema se conserva.</small>
+    </div>` : `
+    <p class="detail-muted feedback-intro">Si no estás de acuerdo con Job Radar, registra tu decisión. No se borra el análisis original.</p>`;
+
+  const classificationOptions = [
+    ["HIGH_PRIORITY", "Alta prioridad"],
+    ["REVIEW", "Revisar"],
+    ["DISCARD", "Descartar"],
+  ].map(([value, label]) => `
+    <label class="feedback-choice-option">
+      <input type="radio" name="human_classification" value="${value}" ${currentClassification === value ? "checked" : ""}>
+      <span>${label}</span>
+    </label>`).join("");
+
+  const reasonOptions = Object.entries(feedbackReasonLabels).map(([value, label]) => `
+    <option value="${value}" ${currentReason === value ? "selected" : ""}>${label}</option>`).join("");
+
+  return `
+    <section class="detail-section feedback-section">
+      <h3>Tu decisión</h3>
+      ${existing}
+      <form id="feedbackForm" class="feedback-form" data-job-id="${detail.id}">
+        <fieldset>
+          <legend>Clasificación correcta</legend>
+          <div class="feedback-choices">${classificationOptions}</div>
+        </fieldset>
+        <label>
+          <span>Motivo</span>
+          <select name="reason_code" required>${reasonOptions}</select>
+        </label>
+        <label>
+          <span>Nota opcional</span>
+          <textarea name="comment" maxlength="2000" rows="3" placeholder="Qué interpretó mal Job Radar">${escapeHtml(currentComment)}</textarea>
+        </label>
+        <div class="feedback-actions">
+          <button type="submit" class="primary">Guardar corrección</button>
+          <span id="feedbackStatus" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>`;
+}
+
 function renderDetail(detail) {
   const latestPosting = detail.postings[0];
   const sourceLink = latestPosting?.url
@@ -215,6 +301,7 @@ function renderDetail(detail) {
       <div class="detail-actions">${sourceLink}</div>
     </div>
     ${renderAnalysis(detail.latest_analysis)}
+    ${renderFeedback(detail)}
     <section class="detail-section">
       <h3>Descripción</h3>
       <p class="description-text">${escapeHtml(detail.description || "La fuente todavía no proporcionó una descripción completa.")}</p>
@@ -232,6 +319,8 @@ function renderDetail(detail) {
     </section>`;
 
   document.getElementById("detailClose").addEventListener("click", closeDetail);
+  const feedbackForm = document.getElementById("feedbackForm");
+  if (feedbackForm) feedbackForm.addEventListener("submit", submitFeedback);
   detailPanel.classList.add("open");
 }
 
@@ -244,6 +333,38 @@ function closeDetail() {
       <p>El análisis, las brechas y las fuentes aparecerán aquí sin sacarte de Radar.</p>
     </div>`;
   document.getElementById("detailClose").addEventListener("click", closeDetail);
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const jobId = form.dataset.jobId;
+  const formData = new FormData(form);
+  const status = document.getElementById("feedbackStatus");
+  const submit = form.querySelector("button[type='submit']");
+  const payload = {
+    human_classification: formData.get("human_classification"),
+    reason_code: formData.get("reason_code"),
+    comment: String(formData.get("comment") || "").trim() || null,
+  };
+
+  submit.disabled = true;
+  status.textContent = "Guardando…";
+  status.classList.remove("error");
+  try {
+    await api(`/api/v1/radar/jobs/${jobId}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    status.textContent = "Guardado";
+    await Promise.all([loadRadarSummary(), loadRadarJobs()]);
+    await loadJobDetail(jobId);
+  } catch (error) {
+    status.textContent = error.message;
+    status.classList.add("error");
+    submit.disabled = false;
+  }
 }
 
 async function loadRadarSummary() {
