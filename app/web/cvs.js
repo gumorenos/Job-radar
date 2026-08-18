@@ -119,9 +119,9 @@ function renderCvItems(items) {
   }).join("");
 }
 
-async function loadCvs() {
+async function loadCvs(options = {}) {
   if (!cvRouteActive()) return;
-  cvStatus.textContent = "";
+  if (!options.preserveStatus) cvStatus.textContent = "";
   cvGrid.innerHTML = '<div class="list-loading">Cargando CVs…</div>';
   try {
     const result = await cvApi("/api/v1/cvs");
@@ -188,7 +188,7 @@ async function saveCv(event) {
     });
     closeDialog();
     cvStatus.textContent = payload.parent_cv_id ? "Nueva versión guardada." : "CV guardado.";
-    await loadCvs();
+    await loadCvs({ preserveStatus: true });
   } catch (error) {
     cvStatus.textContent = error.message;
     cvStatus.classList.add("error");
@@ -218,7 +218,7 @@ async function applyCvAction(action, item) {
       });
       cvStatus.textContent = decision === "APPROVED" ? "CV aprobado." : "CV rechazado.";
     }
-    await loadCvs();
+    await loadCvs({ preserveStatus: true });
   } catch (error) {
     cvStatus.textContent = error.message;
     cvStatus.classList.add("error");
@@ -242,5 +242,5 @@ cvDialog.addEventListener("click", (event) => {
   if (event.target === cvDialog) closeDialog();
 });
 
-window.addEventListener("hashchange", loadCvs);
+window.addEventListener("hashchange", () => loadCvs());
 if (cvRouteActive()) loadCvs();
