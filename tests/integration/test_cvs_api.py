@@ -107,6 +107,32 @@ def test_ai_cv_requires_explicit_approval_before_activation() -> None:
     assert activated.json()["is_active"] is True
 
 
+def test_ai_draft_cannot_replace_base_before_approval() -> None:
+    with TestClient(app) as client:
+        base = client.post(
+            "/api/v1/cvs",
+            json={"name": "CV Base", "is_base": True, "activate": True},
+        )
+        attempted = client.post(
+            "/api/v1/cvs",
+            json={
+                "name": "CV Base IA",
+                "generated_by_ai": True,
+                "is_base": True,
+            },
+        )
+        refreshed = client.get(f"/api/v1/cvs/{base.json()['id']}")
+
+    assert base.status_code == 201
+    assert attempted.status_code == 409
+    assert refreshed.status_code == 200
+    assert refreshed.json()["is_base"] is True
+    assert refreshed.json()["is_active"] is True
+
+    with get_session_factory()() as session:
+        assert session.scalar(select(func.count()).select_from(CvVersion)) == 1
+
+
 def test_same_cv_name_creates_new_version_without_overwriting_original() -> None:
     with TestClient(app) as client:
         first = client.post(
