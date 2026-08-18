@@ -124,22 +124,16 @@
           <div>
             <p class="eyebrow">Perfil profesional</p>
             <h2>CVs</h2>
-            <p>Versiones humanas y fáciles de reconocer. Markdown y JSON quedan fuera del flujo diario.</p>
+            <p>Conserva el original, crea versiones especializadas y aprueba los borradores antes de activarlos.</p>
           </div>
-          <button class="primary">Añadir CV</button>
+          <button class="primary" id="addCvButton">Añadir CV</button>
         </div>
-        <div class="cv-grid">
-          <article class="cv-card base-card">
-            <span class="tag">Base</span>
-            <h3>CV Base</h3>
-            <p>La versión general del perfil.</p>
-            <button class="secondary">Abrir</button>
-          </article>
-          <article class="cv-card placeholder-card">
-            <span class="tag muted-tag">Especializado</span>
-            <h3>Tu próximo CV especializado</h3>
-            <p>HRBP, People Analytics, Onboarding, Compensaciones u otra ruta.</p>
-          </article>
+        <div class="cv-status" id="cvStatus" role="status" aria-live="polite"></div>
+        <div class="cv-grid" id="cvGrid" aria-live="polite">
+          <div class="empty-state panel-empty">
+            <h3>Cargando CVs</h3>
+            <p>Buscando las versiones guardadas en Job Radar.</p>
+          </div>
         </div>
       </section>
 
@@ -163,7 +157,48 @@
     </main>
   </div>
 
+  <dialog class="cv-dialog" id="cvDialog" aria-labelledby="cvDialogTitle">
+    <form id="cvForm">
+      <div class="cv-dialog-heading">
+        <div>
+          <p class="eyebrow">Biblioteca de CVs</p>
+          <h2 id="cvDialogTitle">Añadir CV</h2>
+        </div>
+        <button type="button" class="icon-button" id="closeCvDialog" aria-label="Cerrar">×</button>
+      </div>
+      <input type="hidden" name="parent_cv_id" id="cvParentId">
+      <label>
+        <span>Nombre</span>
+        <input type="text" name="name" id="cvName" maxlength="200" required placeholder="Ej. CV HRBP">
+      </label>
+      <div class="cv-form-columns">
+        <label>
+          <span>Rol objetivo</span>
+          <input type="text" name="target_role" id="cvTargetRole" maxlength="200" placeholder="Ej. Strategic HRBP">
+        </label>
+        <label>
+          <span>Área objetivo</span>
+          <input type="text" name="target_area" id="cvTargetArea" maxlength="200" placeholder="Ej. People Analytics">
+        </label>
+      </div>
+      <label>
+        <span>Contenido o notas</span>
+        <textarea name="content_text" id="cvContent" rows="8" placeholder="Texto del CV o notas para esta versión"></textarea>
+      </label>
+      <div class="cv-checks">
+        <label><input type="checkbox" name="is_base" id="cvIsBase"> Marcar como CV base</label>
+        <label><input type="checkbox" name="activate" id="cvActivate"> Usar como CV activo</label>
+      </div>
+      <p class="cv-form-note">Crear una versión nueva nunca sobrescribe un CV existente.</p>
+      <div class="cv-dialog-actions">
+        <button type="button" class="secondary" id="cancelCvDialog">Cancelar</button>
+        <button type="submit" class="primary" id="saveCvButton">Guardar CV</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="prototype-note">Radar conectado · CRM, CVs y Configuración se habilitarán progresivamente</div>
   <script src="/app/app.js"></script>
+  <script src="/app/cvs.js"></script>
 </body>
 </html>
