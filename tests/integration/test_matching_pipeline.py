@@ -102,7 +102,7 @@ def test_worker_discards_excluded_seniority_and_radar_reflects_it() -> None:
         analysis = session.scalar(select(MatchAnalysis))
         assert analysis is not None
         assert analysis.classification == Classification.DISCARD
-        assert analysis.analyzer_version == "rules-v1"
+        assert analysis.analyzer_version == "rules-v2"
         results = analysis.rule_results["results"]
         seniority = next(item for item in results if item["code"] == "SENIORITY_TITLE")
         assert seniority["severity"] == "HARD"
@@ -129,6 +129,7 @@ def test_worker_creates_review_analysis_and_default_profile() -> None:
 
         assert analysis is not None
         assert analysis.classification == Classification.REVIEW
+        assert analysis.analyzer_version == "rules-v2"
         assert analysis.confidence is not None
         assert profile is not None
         assert profile.salary_min_pen == Decimal("7000")
@@ -138,6 +139,43 @@ def test_worker_creates_review_analysis_and_default_profile() -> None:
             TaskType.ANALYZE_MATCH,
         ]
         assert all(task.status == TaskStatus.COMPLETED for task in tasks)
+
+
+def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
+    with TestClient(app) as client:
+        _ingest(
+            client,
+            "matching-high-priority",
+            {
+                "title": "Senior People Analytics Analyst",
+                "company": "Analytics Corp",
+                "location": "Lima",
+                "work_mode": "hybrid",
+                "salary_text": "S/ 9,000",
+                "description": (
+                    "Lidera People Analytics y HR Analytics para decisiones estratégicas de "
+                    "gestión humana."
+                ),
+                "url": "https://example.com/jobs/high-people-analytics",
+            },
+        )
+        summary = client.get("/api/v1/radar/summary")
+        high = client.get("/api/v1/radar/jobs?view=high")
+
+    assert summary.status_code == 200
+    assert summary.json()["high"] == 1
+    assert high.status_code == 200
+    assert high.json()["total"] == 1
+
+    with get_session_factory()() as session:
+        analysis = session.scalar(select(MatchAnalysis))
+        assert analysis is not None
+        assert analysis.classification == Classification.HIGH_PRIORITY
+        assert analysis.analyzer_version == "rules-v2"
+        assert analysis.recommendation == "PRIORIZAR"
+        assert "Senior Analyst" in analysis.skill_analysis["role_matches"]
+        assert "People Analytics" in analysis.skill_analysis["core_area_matches"]
+        assert analysis.strengths
 
 
 def test_remote_latam_salary_below_remote_floor_is_discarded() -> None:
