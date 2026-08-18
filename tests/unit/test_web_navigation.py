@@ -17,11 +17,17 @@ def test_application_shell_exposes_simplified_primary_navigation() -> None:
     assert 'id="opportunitySearch"' in response.text
     assert 'name="opportunity_search"' in response.text
     assert 'href="/app/favicon.svg"' in response.text
+    assert 'id="cvGrid"' in response.text
+    assert 'id="addCvButton"' in response.text
+    assert 'src="/app/cvs.js"' in response.text
 
 
-def test_application_shell_serves_favicon() -> None:
+def test_application_shell_serves_static_assets() -> None:
     with TestClient(app) as client:
-        response = client.get("/app/favicon.svg")
+        favicon = client.get("/app/favicon.svg")
+        cvs_script = client.get("/app/cvs.js")
 
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert favicon.status_code == 200
+    assert favicon.headers["content-type"].startswith("image/svg+xml")
+    assert cvs_script.status_code == 200
+    assert "loadCvs" in cvs_script.text
