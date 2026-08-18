@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.enums import Classification, Confidence, TaskStatus, TaskType
 from app.db.models import CandidateProfile, Company, Job, JobPosting, MatchAnalysis, ProcessingTask
 from app.domains.matching.facts import is_international_remote, monthly_salary_pen
+from app.domains.matching.fit import FitSignalInput, evaluate_positive_fit
 from app.domains.matching.rules import (
     MatchingRuleInput,
     MatchingRulePolicy,
@@ -16,7 +17,7 @@ from app.domains.matching.rules import (
     evaluate_business_rules,
 )
 
-ANALYZER_VERSION = "rules-v1"
+ANALYZER_VERSION = "rules-v2"
 
 
 def _active_profile(session: Session) -> CandidateProfile:
@@ -42,6 +43,8 @@ def _active_profile(session: Session) -> CandidateProfile:
             "Supervisor",
             "HR Business Partner",
             "Senior HRBP",
+            "Strategic HRBP",
+            "Jefe",
             "Lead",
             "Manager",
             "Gerente",
@@ -53,6 +56,9 @@ def _active_profile(session: Session) -> CandidateProfile:
             "Compensaciones",
             "Relaciones Laborales",
             "HR Analytics",
+            "Recursos Humanos",
+            "Capital Humano",
+            "Gestión de Personas",
         ],
         adjacent_areas=[
             "People Operations",
@@ -107,6 +113,7 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
 
     profile = _active_profile(session)
     posting = _latest_posting(session, job.id)
+    salary_pen = monthly_salary_pen(posting)
     local_floor = Decimal(profile.salary_min_pen)
     policy = MatchingRulePolicy(
         local_salary_min_pen=local_floor,
@@ -117,19 +124,37 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
         location=job.location_text,
         work_mode=job.work_mode,
         industry=_company_industry(session, job),
-        monthly_salary_pen=monthly_salary_pen(posting),
+        monthly_salary_pen=salary_pen,
         is_international_remote=is_international_remote(job),
     )
     evaluation = evaluate_business_rules(facts, policy)
+    fit = evaluate_positive_fit(
+        FitSignalInput(
+            title=job.canonical_title,
+            description=job.description_text,
+            location=job.location_text,
+            work_mode=job.work_mode,
+            monthly_salary_pen=salary_pen,
+            target_roles=tuple(profile.target_roles),
+            target_areas=tuple(profile.target_areas),
+            adjacent_areas=tuple(profile.adjacent_areas),
+        )
+    )
 
-    classification = evaluation.forced_classification or Classification.REVIEW
-    if classification == Classification.DISCARD:
+    if evaluation.forced_classification == Classification.DISCARD:
+        classification = Classification.DISCARD
         confidence = Confidence.HIGH
         recommendation = "DESCARTAR"
     elif evaluation.requires_review:
+        classification = Classification.REVIEW
         confidence = Confidence.MEDIUM
         recommendation = "REVISAR"
+    elif fit.high_priority:
+        classification = Classification.HIGH_PRIORITY
+        confidence = Confidence.MEDIUM
+        recommendation = "PRIORIZAR"
     else:
+        classification = Classification.REVIEW
         confidence = Confidence.LOW
         recommendation = "REVISAR"
 
@@ -142,10 +167,12 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
         explanation = " ".join(str(message) for message in hard_messages)
     elif warning_messages:
         explanation = " ".join(str(message) for message in warning_messages)
+    elif classification == Classification.HIGH_PRIORITY:
+        explanation = " ".join(fit.strengths[:2])
     else:
         explanation = (
-            "No se activaron reglas de descarte. La vacante queda en revisión hasta completar "
-            "la evaluación de ajuste y priorización."
+            "No se activaron descartes, pero todavía falta una combinación fuerte de rol y "
+            "área foco para elevar la vacante a Alta prioridad."
         )
 
     salary_result = next(
@@ -169,9 +196,14 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
             "requires_review": evaluation.requires_review,
             "results": rule_items,
         },
-        skill_analysis={},
-        strengths=[],
-        gaps=warning_messages,
+        skill_analysis={
+            "role_matches": list(fit.role_matches),
+            "core_area_matches": list(fit.core_area_matches),
+            "adjacent_area_matches": list(fit.adjacent_area_matches),
+            "positive_fit_rule": "role_and_core_area",
+        },
+        strengths=list(fit.strengths),
+        gaps=[*warning_messages, *fit.gaps],
         career_move_assessment=None,
         salary_assessment=str(salary_result["message"]) if salary_result else None,
         recommendation=recommendation,
