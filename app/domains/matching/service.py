@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.enums import Classification, Confidence, TaskStatus, TaskType
-from app.db.models import CandidateProfile, Company, Job, JobPosting, MatchAnalysis, ProcessingTask
+from app.db.models import Company, Job, JobPosting, MatchAnalysis, ProcessingTask
 from app.domains.matching.facts import is_international_remote, monthly_salary_pen
 from app.domains.matching.rules import (
     MatchingRuleInput,
@@ -15,61 +15,9 @@ from app.domains.matching.rules import (
     RuleResult,
     evaluate_business_rules,
 )
+from app.domains.profiles.service import get_or_create_active_profile
 
 ANALYZER_VERSION = "rules-v1"
-
-
-def _active_profile(session: Session) -> CandidateProfile:
-    profile = session.scalar(
-        select(CandidateProfile)
-        .where(CandidateProfile.is_active.is_(True))
-        .order_by(CandidateProfile.created_at.asc())
-        .limit(1)
-    )
-    if profile is not None:
-        return profile
-
-    profile = CandidateProfile(
-        name="Perfil personal",
-        is_active=True,
-        salary_min_pen=Decimal("7000"),
-        remote_salary_multiplier=Decimal("1.10"),
-        target_locations=["Lima Metropolitana", "Remote LATAM", "Remote Global"],
-        target_roles=[
-            "Senior Analyst",
-            "Senior Specialist",
-            "Coordinator",
-            "Supervisor",
-            "HR Business Partner",
-            "Senior HRBP",
-            "Lead",
-            "Manager",
-            "Gerente",
-        ],
-        target_areas=[
-            "Onboarding",
-            "People Analytics",
-            "Gestión Humana",
-            "Compensaciones",
-            "Relaciones Laborales",
-            "HR Analytics",
-        ],
-        adjacent_areas=[
-            "People Operations",
-            "HR Operations",
-            "Talent Management",
-            "Organizational Development",
-            "Workforce Analytics",
-            "HR Transformation",
-            "Employee Experience",
-            "Total Rewards",
-            "HRIS",
-        ],
-        rules={"source": "phase-0-confirmed-rules"},
-    )
-    session.add(profile)
-    session.flush()
-    return profile
 
 
 def _latest_posting(session: Session, job_id: UUID) -> JobPosting | None:
@@ -105,7 +53,7 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
     if job is None:
         raise LookupError(f"Job {job_id} does not exist.")
 
-    profile = _active_profile(session)
+    profile = get_or_create_active_profile(session)
     posting = _latest_posting(session, job.id)
     local_floor = Decimal(profile.salary_min_pen)
     policy = MatchingRulePolicy(
