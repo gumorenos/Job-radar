@@ -98,8 +98,8 @@ def _phrase_matches(terms: tuple[str, ...], text_key: str) -> list[str]:
 
 
 def evaluate_positive_fit(facts: FitSignalInput) -> FitEvaluation:
-    title_key = comparison_key(facts.title)
-    text_key = comparison_key(" ".join(filter(None, (facts.title, facts.description))))
+    title_key = comparison_key(facts.title) or ""
+    text_key = comparison_key(" ".join(filter(None, (facts.title, facts.description)))) or ""
 
     role_terms = _dedupe([*facts.target_roles, *_ROLE_EQUIVALENTS])
     core_terms = _dedupe([*facts.target_areas, *_CORE_AREA_EQUIVALENTS])
@@ -130,9 +130,10 @@ def evaluate_positive_fit(facts: FitSignalInput) -> FitEvaluation:
     else:
         gaps.append("El salario no está publicado; no impide priorizar, pero queda como incógnita.")
 
+    location_key = comparison_key(facts.location) or ""
     if facts.work_mode == WorkMode.REMOTE:
         strengths.append("La modalidad remota es compatible con la búsqueda.")
-    elif facts.location and "lima" in comparison_key(facts.location):
+    elif "lima" in location_key:
         strengths.append("La ubicación está dentro de Lima.")
 
     high_priority = bool(role_matches and core_matches)
