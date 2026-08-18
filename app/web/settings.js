@@ -1,3 +1,8 @@
+const settingsStylesheet = document.createElement("link");
+settingsStylesheet.rel = "stylesheet";
+settingsStylesheet.href = "/app/settings.css";
+document.head.appendChild(settingsStylesheet);
+
 const profileSettingsForm = document.getElementById("profileSettingsForm");
 const profileSettingsStatus = document.getElementById("profileSettingsStatus");
 const profileName = document.getElementById("profileName");
