@@ -148,22 +148,119 @@
           <div>
             <p class="eyebrow">Administración</p>
             <h2>Configuración</h2>
-            <p>Los controles que no necesitas durante una revisión normal viven aquí.</p>
+            <p>Tu perfil de búsqueda y preferencias se editan en una sola pantalla.</p>
           </div>
         </div>
-        <div class="settings-list">
-          <button><span><strong>Perfil profesional</strong><small>Experiencia, skills y datos del candidato</small></span><b>›</b></button>
-          <button><span><strong>Preferencias de búsqueda</strong><small>Roles, ubicaciones, modalidad y salario</small></span><b>›</b></button>
-          <button><span><strong>Reglas</strong><small>Descartes automáticos, warnings y criterios</small></span><b>›</b></button>
-          <button><span><strong>Fuentes</strong><small>OpenClaw, email y futuras integraciones</small></span><b>›</b></button>
-          <button><span><strong>Notificaciones</strong><small>Telegram y resumen diario</small></span><b>›</b></button>
-          <button><span><strong>Avanzado</strong><small>Diagnóstico y controles técnicos</small></span><b>›</b></button>
-        </div>
+        <div class="settings-status" id="profileSettingsStatus" role="status" aria-live="polite"></div>
+        <form class="profile-settings" id="profileSettingsForm">
+          <section class="settings-card">
+            <div class="settings-card-heading">
+              <div>
+                <h3>Perfil de búsqueda</h3>
+                <p>El nombre identifica esta configuración personal dentro de Job Radar.</p>
+              </div>
+            </div>
+            <label class="settings-field">
+              <span>Nombre del perfil</span>
+              <input id="profileName" name="profile_name" type="text" maxlength="200" required>
+            </label>
+          </section>
+
+          <section class="settings-card">
+            <div class="settings-card-heading">
+              <div>
+                <h3>Salario mínimo</h3>
+                <p>Se usa en las reglas de descarte cuando la vacante publica salario.</p>
+              </div>
+            </div>
+            <div class="settings-columns">
+              <label class="settings-field">
+                <span>Local Perú · S/ mensual</span>
+                <input id="salaryMinPen" name="salary_min_pen" type="number" min="0" step="100" required>
+              </label>
+              <label class="settings-field">
+                <span>Multiplicador remoto/internacional</span>
+                <input id="remoteSalaryMultiplier" name="remote_salary_multiplier" type="number" min="1" max="5" step="0.05" required>
+              </label>
+            </div>
+            <p class="settings-derived">Mínimo remoto resultante: <strong id="remoteSalaryFloor">—</strong></p>
+          </section>
+
+          <section class="settings-card">
+            <div class="settings-card-heading">
+              <div>
+                <h3>Qué oportunidades buscar</h3>
+                <p>Un término por línea. Job Radar normaliza duplicados y espacios al guardar.</p>
+              </div>
+            </div>
+            <div class="settings-columns">
+              <label class="settings-field">
+                <span>Roles objetivo</span>
+                <textarea id="targetRoles" name="target_roles" rows="9"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Ubicaciones válidas</span>
+                <textarea id="targetLocations" name="target_locations" rows="9"></textarea>
+              </label>
+            </div>
+            <div class="settings-columns">
+              <label class="settings-field">
+                <span>Áreas foco</span>
+                <textarea id="targetAreas" name="target_areas" rows="9"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Áreas adyacentes</span>
+                <textarea id="adjacentAreas" name="adjacent_areas" rows="9"></textarea>
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-card">
+            <div class="settings-card-heading">
+              <div>
+                <h3>Revisión diaria</h3>
+                <p>Horario usado por el futuro resumen de oportunidades en Revisar.</p>
+              </div>
+            </div>
+            <div class="settings-columns">
+              <label class="settings-field">
+                <span>Hora</span>
+                <input id="dailyReviewTime" name="daily_review_time" type="time" required>
+              </label>
+              <label class="settings-field">
+                <span>Zona horaria</span>
+                <input id="profileTimezone" name="timezone" type="text" maxlength="80" required>
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-card rules-summary-card">
+            <div class="settings-card-heading">
+              <div>
+                <h3>Reglas de descarte v1</h3>
+                <p>Se muestran como referencia; las reglas duras no se mezclan con el score.</p>
+              </div>
+            </div>
+            <ul>
+              <li>Prácticas, asistente o junior → Descartar.</li>
+              <li>Presencial fuera de Lima Metropolitana → Descartar.</li>
+              <li>Salario local publicado por debajo del mínimo → Descartar.</li>
+              <li>Salario remoto publicado por debajo del mínimo remoto → Descartar.</li>
+              <li>Salario desconocido, grado o experiencia parcial → no descartar automáticamente.</li>
+            </ul>
+          </section>
+
+          <div class="settings-save-bar">
+            <span id="settingsUnsavedHint">Los cambios se aplican al próximo análisis.</span>
+            <button class="primary" id="saveProfileSettings" type="submit">Guardar configuración</button>
+          </div>
+        </form>
       </section>
     </main>
   </div>
 
   <div class="prototype-note">Radar conectado · CRM, CVs y Configuración se habilitarán progresivamente</div>
   <script src="/app/app.js"></script>
+  <script src="/app/settings.js"></script>
 </body>
 </html>
