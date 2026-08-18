@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
+from app.db.models import CandidateProfile
 from app.db.session import get_session
 from app.domains.profiles.service import get_or_create_active_profile
 
@@ -80,21 +81,20 @@ class CandidateProfileUpdate(BaseModel):
         return cleaned
 
 
-def _view(profile: object) -> CandidateProfileView:
-    candidate = profile
+def _view(profile: CandidateProfile) -> CandidateProfileView:
     return CandidateProfileView(
-        id=candidate.id,
-        name=candidate.name,
-        salary_min_pen=candidate.salary_min_pen,
-        remote_salary_multiplier=candidate.remote_salary_multiplier,
-        remote_salary_min_pen=(candidate.salary_min_pen * candidate.remote_salary_multiplier),
-        target_locations=list(candidate.target_locations),
-        target_roles=list(candidate.target_roles),
-        target_areas=list(candidate.target_areas),
-        adjacent_areas=list(candidate.adjacent_areas),
-        daily_review_time=candidate.daily_review_time,
-        timezone=candidate.timezone,
-        rules=dict(candidate.rules),
+        id=profile.id,
+        name=profile.name,
+        salary_min_pen=profile.salary_min_pen,
+        remote_salary_multiplier=profile.remote_salary_multiplier,
+        remote_salary_min_pen=(profile.salary_min_pen * profile.remote_salary_multiplier),
+        target_locations=list(profile.target_locations),
+        target_roles=list(profile.target_roles),
+        target_areas=list(profile.target_areas),
+        adjacent_areas=list(profile.adjacent_areas),
+        daily_review_time=profile.daily_review_time,
+        timezone=profile.timezone,
+        rules=dict(profile.rules),
     )
 
 
