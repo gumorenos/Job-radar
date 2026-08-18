@@ -155,10 +155,12 @@ def create_cv(payload: CvCreate, session: SessionDep) -> CvItem:
         CvApprovalStatus.DRAFT if payload.generated_by_ai else CvApprovalStatus.APPROVED
     )
     approved_at = None if payload.generated_by_ai else datetime.now(UTC)
-    if payload.activate and approval_status != CvApprovalStatus.APPROVED:
+    if payload.generated_by_ai and (payload.activate or payload.is_base):
         raise HTTPException(
             status_code=409,
-            detail="Un CV generado por IA debe aprobarse antes de activarse.",
+            detail=(
+                "Un CV generado por IA debe aprobarse antes de reemplazar el CV base o activarse."
+            ),
         )
 
     if payload.is_base:
