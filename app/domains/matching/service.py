@@ -131,7 +131,7 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
     fit = evaluate_positive_fit(
         FitSignalInput(
             title=job.canonical_title,
-            description=job.description_text,
+            description=job.description,
             location=job.location_text,
             work_mode=job.work_mode,
             monthly_salary_pen=salary_pen,
