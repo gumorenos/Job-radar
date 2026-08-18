@@ -62,3 +62,45 @@ Desde `/app/`:
 ### Criterio de cierre
 
 PASS únicamente si runtime, migración, integración, flujo CRM, timestamps, idempotencia, separación matching/CRM y UX pasan sin cambios de código ni de producción.
+
+---
+
+## QA-002 — CV library v1
+
+**Estado:** PENDIENTE  
+**PR:** #9 — `CVs: add versioned personal library`  
+**Branch:** `feat/cv-library-v1`  
+**HEAD esperado:** `486eaa5e253f505aa2e84502730c6a52197b2384`  
+**CI GitHub:** PASS  
+**Bloquea merge:** Sí
+
+### Runtime
+
+1. Ejecutar `uv sync --locked`, Ruff, mypy y unit tests.
+2. Build Docker y confirmar `arm64`.
+3. Levantar PostgreSQL, ejecutar `alembic upgrade head`, API y worker.
+4. Confirmar `/health`, `/ready`, `/app/` y `/app/cvs.js` = 200.
+5. Con `.env` exportado ejecutar `tests/integration`.
+
+### Flujo CV
+
+1. Abrir `/app/#/cvs`; inicialmente debe cargar desde `/api/v1/cvs` sin errores.
+2. Añadir `CV Base QA`, marcarlo Base y Activo. Debe quedar `APPROVED`, `is_base=true`, `is_active=true`.
+3. Crear `Nueva versión`; debe conservar la original, crear versión 2 y `parent_cv_id` debe apuntar a la versión 1.
+4. Confirmar que solo una versión queda activa.
+5. Crear por API un CV con `generated_by_ai=true`. Debe quedar `DRAFT`, mostrarse como `IA` y no poder activarse (`409`).
+6. Aprobar el borrador desde la UI y luego activarlo. Debe quedar `APPROVED` y pasar a ser el único activo.
+7. Crear otro borrador IA y rechazarlo; debe quedar `REJECTED` e inactivo.
+8. Confirmar en PostgreSQL que ninguna creación/versionado sobrescribió el contenido de versiones anteriores.
+
+### UX
+
+- Desktop 1366×768 y mobile 390×844.
+- Dialog de Añadir/Nueva versión usable sin overflow bloqueante.
+- Mensajes de guardado/aprobación/activación visibles.
+- Consola limpia y requests de CVs sin 4xx/5xx inesperados.
+- API/PostgreSQL solo localhost.
+
+### Criterio de cierre
+
+PASS si versionado, aprobación explícita de IA, activación única, preservación del original, API, UI y ARM64 funcionan sin modificar código ni producción.
