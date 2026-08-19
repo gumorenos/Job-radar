@@ -34,11 +34,22 @@ def test_onsite_outside_lima_forces_discard() -> None:
     assert result.forced_classification == Classification.DISCARD
 
 
-def test_onsite_lima_is_allowed() -> None:
+@pytest.mark.parametrize(
+    "location",
+    [
+        "San Isidro, Lima",
+        "Ate, Lima",
+        "Los Olivos, Lima",
+        "San Juan de Lurigancho",
+        "Villa El Salvador",
+        "Ventanilla, Callao",
+    ],
+)
+def test_onsite_lima_metropolitana_is_allowed(location: str) -> None:
     result = evaluate_business_rules(
         MatchingRuleInput(
             title="HR Business Partner",
-            location="San Isidro, Lima",
+            location=location,
             work_mode=WorkMode.ONSITE,
         )
     )
