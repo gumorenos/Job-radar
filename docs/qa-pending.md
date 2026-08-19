@@ -182,6 +182,32 @@ Validar que el sistema crea intenciones de notificación correctas sin enviar to
 
 ---
 
+## QA-006 — Core review correctness fixes
+
+**Estado:** PENDIENTE  
+**PR:** #13 — `Core review: fix location and rediscovery correctness`  
+**Branch:** `fix/core-review-critical`  
+**HEAD esperado:** se actualiza con el commit final del PR  
+**CI GitHub:** PASS antes de este cambio documental  
+**Bloquea merge:** Sí
+
+### Objetivo
+
+Validar en Oracle ARM64 que las correcciones críticas de geografía y redescubrimiento no producen falsos descartes, análisis redundantes ni datos obsoletos.
+
+### Casos
+
+1. Ejecutar estáticos/unit/integration y build Docker ARM64; confirmar que el build usa `uv.lock` sin resolver dependencias nuevas.
+2. Levantar PostgreSQL/Alembic/API/worker en el proyecto QA aislado; `/health`, `/ready` y `/app/` = 200.
+3. Ingestar una vacante ONSITE en `Ate, Lima` y otra en `San Juan de Lurigancho`: ninguna debe descartarse por `ONSITE_LOCATION`.
+4. Ingestar una ONSITE en `Arequipa, Perú`: debe quedar `DISCARD` por `ONSITE_LOCATION`.
+5. Ingestar una publicación con URL estable, S/8,500 y descripción A; antes de ejecutar su análisis, redescubrir la misma URL con S/6,500 y descripción B.
+6. Debe existir un solo `ANALYZE_MATCH` pendiente, el posting/job debe contener S/6,500/descripción B y el análisis final debe usar esos datos y quedar `DISCARD` por salario.
+7. Redescubrir después exactamente la misma publicación: debe crear un nuevo `PostingSighting`, actualizar `last_seen`, pero no crear otro `MatchAnalysis` ni otra tarea de análisis.
+8. Logs sin errores ni datos sensibles; API/PostgreSQL solo localhost; limpiar QA al terminar.
+
+---
+
 ## Cierre de un bloque
 
 Un bloque pasa a PASS solo cuando OpenClaw confirme el HEAD exacto, runtime ARM64, pruebas automatizadas, flujo funcional, UX solicitada, ausencia de cambios de código/producción y limpieza del entorno QA. Hasta entonces el PR correspondiente permanece sin merge.
