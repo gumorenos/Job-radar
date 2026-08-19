@@ -41,6 +41,7 @@ def _truncate_database() -> None:
             text(
                 """
                 TRUNCATE TABLE
+                    duplicate_candidates,
                     job_applications,
                     classification_feedback,
                     notifications,
@@ -163,13 +164,15 @@ def test_worker_creates_review_analysis_and_daily_review_notification() -> None:
         ]
         assert all(task.status == TaskStatus.COMPLETED for task in tasks)
         assert len(notifications) == 2
-        assert all(item.status == NotificationStatus.PENDING for item in notifications)
 
         by_channel = {item.channel: item for item in notifications}
         dashboard = by_channel[NotificationChannel.DASHBOARD]
         telegram = by_channel[NotificationChannel.TELEGRAM]
         assert dashboard.notification_type == NotificationType.IMMEDIATE
+        assert dashboard.status == NotificationStatus.SENT
+        assert dashboard.sent_at is not None
         assert telegram.notification_type == NotificationType.DAILY_REVIEW
+        assert telegram.status == NotificationStatus.PENDING
         assert telegram.scheduled_for is not None
         assert telegram.scheduled_for.astimezone(ZoneInfo("America/Lima")).hour == 21
 
@@ -216,6 +219,9 @@ def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
             NotificationChannel.TELEGRAM,
         }
         assert all(item.notification_type == NotificationType.IMMEDIATE for item in notifications)
+        by_channel = {item.channel: item for item in notifications}
+        assert by_channel[NotificationChannel.DASHBOARD].status == NotificationStatus.SENT
+        assert by_channel[NotificationChannel.TELEGRAM].status == NotificationStatus.PENDING
 
 
 def test_remote_latam_salary_below_remote_floor_is_discarded() -> None:
