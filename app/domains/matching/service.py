@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 from app.db.enums import Classification, Confidence, CvApprovalStatus, TaskStatus, TaskType
 from app.db.models import Company, CvVersion, Job, JobPosting, MatchAnalysis, ProcessingTask
 from app.domains.jobs.normalization import comparison_key
-from app.domains.matching.facts import is_international_remote, monthly_salary_pen
+from app.domains.matching.facts import (
+    is_international_remote,
+    monthly_salary_pen,
+    published_salary_unassessed,
+)
 from app.domains.matching.fit import FitSignalInput, evaluate_positive_fit
 from app.domains.matching.rules import (
     MatchingRuleInput,
@@ -104,6 +108,7 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
         work_mode=job.work_mode,
         industry=_company_industry(session, job),
         monthly_salary_pen=salary_pen,
+        salary_published_unassessed=published_salary_unassessed(posting),
         is_international_remote=is_international_remote(job),
     )
     evaluation = evaluate_business_rules(facts, policy)
