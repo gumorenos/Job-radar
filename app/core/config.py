@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     worker_poll_interval_seconds: float = 2.0
     worker_stale_task_seconds: int = 900
     reappearance_window_days: int = 30
+    telegram_enabled: bool = False
+    telegram_bot_token: SecretStr = SecretStr("")
+    telegram_chat_id: str = ""
 
 
 @lru_cache(maxsize=1)
