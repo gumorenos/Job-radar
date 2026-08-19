@@ -8,38 +8,28 @@
   <link rel="stylesheet" href="/app/styles.css">
   <link rel="stylesheet" href="/app/radar.css">
   <link rel="stylesheet" href="/app/applications.css">
+  <link rel="stylesheet" href="/app/settings.css">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar" aria-label="Navegación principal">
       <div class="brand">
         <span class="brand-mark">JR</span>
-        <div>
-          <strong>Job Radar</strong>
-          <span>Personal job OS</span>
-        </div>
+        <div><strong>Job Radar</strong><span>Personal job OS</span></div>
       </div>
-
       <nav class="primary-nav">
         <a href="#/radar" data-route="radar"><span aria-hidden="true">◎</span> Radar</a>
         <a href="#/applications" data-route="applications"><span aria-hidden="true">▣</span> Postulaciones</a>
         <a href="#/cvs" data-route="cvs"><span aria-hidden="true">▤</span> CVs</a>
         <a href="#/settings" data-route="settings"><span aria-hidden="true">⚙</span> Configuración</a>
       </nav>
-
-      <div class="sidebar-footer">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span>Core conectado</span>
-      </div>
+      <div class="sidebar-footer"><span class="status-dot" aria-hidden="true"></span><span>Core conectado</span></div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
         <button class="mobile-nav" id="mobileNav" aria-label="Abrir navegación">☰</button>
-        <div>
-          <p class="eyebrow" id="eyebrow">Radar</p>
-          <h1 id="pageTitle">Oportunidades</h1>
-        </div>
+        <div><p class="eyebrow" id="eyebrow">Radar</p><h1 id="pageTitle">Oportunidades</h1></div>
         <div class="topbar-actions">
           <button class="secondary" id="focusSearch">Buscar</button>
           <button class="icon-button" aria-label="Notificaciones">○</button>
@@ -50,24 +40,11 @@
         <div class="radar-layout">
           <div class="radar-main">
             <div class="summary-strip" aria-label="Resumen de clasificación">
-              <button class="summary-card active" data-radar-filter="high">
-                <span class="summary-value" data-summary-value="high">—</span>
-                <span class="summary-label"><i class="signal high"></i> Alta prioridad</span>
-              </button>
-              <button class="summary-card" data-radar-filter="review">
-                <span class="summary-value" data-summary-value="review">—</span>
-                <span class="summary-label"><i class="signal review"></i> Revisar</span>
-              </button>
-              <button class="summary-card" data-radar-filter="discarded">
-                <span class="summary-value" data-summary-value="discarded">—</span>
-                <span class="summary-label"><i class="signal discarded"></i> Descartadas</span>
-              </button>
-              <button class="summary-card" data-radar-filter="duplicates">
-                <span class="summary-value" data-summary-value="duplicates">—</span>
-                <span class="summary-label"><i class="signal duplicate"></i> Posibles duplicados</span>
-              </button>
+              <button class="summary-card active" data-radar-filter="high"><span class="summary-value" data-summary-value="high">—</span><span class="summary-label"><i class="signal high"></i> Alta prioridad</span></button>
+              <button class="summary-card" data-radar-filter="review"><span class="summary-value" data-summary-value="review">—</span><span class="summary-label"><i class="signal review"></i> Revisar</span></button>
+              <button class="summary-card" data-radar-filter="discarded"><span class="summary-value" data-summary-value="discarded">—</span><span class="summary-label"><i class="signal discarded"></i> Descartadas</span></button>
+              <button class="summary-card" data-radar-filter="duplicates"><span class="summary-value" data-summary-value="duplicates">—</span><span class="summary-label"><i class="signal duplicate"></i> Posibles duplicados</span></button>
             </div>
-
             <div class="list-toolbar">
               <div class="filter-tabs" role="tablist" aria-label="Clasificación">
                 <button class="tab active" data-radar-filter="high">Alta prioridad</button>
@@ -75,38 +52,21 @@
                 <button class="tab" data-radar-filter="discarded">Descartadas</button>
                 <button class="tab" data-radar-filter="duplicates">Duplicados</button>
               </div>
-              <div class="list-actions">
-                <input id="opportunitySearch" name="opportunity_search" type="search" placeholder="Buscar puesto o empresa" aria-label="Buscar oportunidades">
-              </div>
+              <div class="list-actions"><input id="opportunitySearch" name="opportunity_search" type="search" placeholder="Buscar puesto o empresa" aria-label="Buscar oportunidades"></div>
             </div>
-
             <div class="opportunity-list" id="opportunityList" aria-live="polite">
-              <div class="empty-state">
-                <div class="empty-icon">◎</div>
-                <h2>Cargando Radar</h2>
-                <p>Buscando oportunidades procesadas por Job Radar.</p>
-              </div>
+              <div class="empty-state"><div class="empty-icon">◎</div><h2>Cargando Radar</h2><p>Buscando oportunidades procesadas por Job Radar.</p></div>
             </div>
           </div>
-
           <aside class="detail-panel" id="detailPanel" aria-label="Detalle de oportunidad">
             <button class="detail-close" id="detailClose" aria-label="Cerrar detalle">×</button>
-            <div class="detail-empty">
-              <span>Selecciona una oportunidad</span>
-              <p>El análisis, las brechas y las fuentes aparecerán aquí sin sacarte de Radar.</p>
-            </div>
+            <div class="detail-empty"><span>Selecciona una oportunidad</span><p>El análisis, las brechas y las fuentes aparecerán aquí sin sacarte de Radar.</p></div>
           </aside>
         </div>
       </section>
 
       <section class="view" data-view="applications">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">CRM</p>
-            <h2>Postulaciones</h2>
-            <p>El ciclo de postulación está separado de la clasificación de compatibilidad.</p>
-          </div>
-        </div>
+        <div class="section-heading"><div><p class="eyebrow">CRM</p><h2>Postulaciones</h2><p>El ciclo de postulación está separado de la clasificación de compatibilidad.</p></div></div>
         <div class="stage-grid application-stages" aria-label="Etapas de postulación">
           <button class="application-stage active" data-application-stage="TO_APPLY"><strong>Para postular</strong><span data-application-count="to_apply">—</span></button>
           <button class="application-stage" data-application-stage="APPLIED"><strong>Postuladas</strong><span data-application-count="applied">—</span></button>
@@ -114,59 +74,87 @@
           <button class="application-stage" data-application-stage="OFFER"><strong>Ofertas</strong><span data-application-count="offer">—</span></button>
           <button class="application-stage" data-application-stage="CLOSED"><strong>Cerradas</strong><span data-application-count="closed">—</span></button>
         </div>
-        <div class="applications-list" id="applicationsList" aria-live="polite">
-          <div class="empty-state panel-empty">
-            <h3>Cargando postulaciones</h3>
-            <p>Preparando tu pipeline de búsqueda.</p>
-          </div>
-        </div>
+        <div class="applications-list" id="applicationsList" aria-live="polite"><div class="empty-state panel-empty"><h3>Cargando postulaciones</h3><p>Preparando tu pipeline de búsqueda.</p></div></div>
       </section>
 
       <section class="view" data-view="cvs">
         <div class="section-heading">
-          <div>
-            <p class="eyebrow">Perfil profesional</p>
-            <h2>CVs</h2>
-            <p>Versiones humanas y fáciles de reconocer. Markdown y JSON quedan fuera del flujo diario.</p>
-          </div>
-          <button class="primary">Añadir CV</button>
+          <div><p class="eyebrow">Perfil profesional</p><h2>CVs</h2><p>Conserva originales, crea versiones especializadas y aprueba borradores antes de activarlos.</p></div>
+          <button class="primary" id="addCvButton">Añadir CV</button>
         </div>
-        <div class="cv-grid">
-          <article class="cv-card base-card">
-            <span class="tag">Base</span>
-            <h3>CV Base</h3>
-            <p>La versión general del perfil.</p>
-            <button class="secondary">Abrir</button>
-          </article>
-          <article class="cv-card placeholder-card">
-            <span class="tag muted-tag">Especializado</span>
-            <h3>Tu próximo CV especializado</h3>
-            <p>HRBP, People Analytics, Onboarding, Compensaciones u otra ruta.</p>
-          </article>
-        </div>
+        <div class="cv-status" id="cvStatus" role="status" aria-live="polite"></div>
+        <div class="cv-grid" id="cvGrid" aria-live="polite"><div class="empty-state panel-empty"><h3>Cargando CVs</h3><p>Buscando las versiones guardadas en Job Radar.</p></div></div>
       </section>
 
       <section class="view" data-view="settings">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Administración</p>
-            <h2>Configuración</h2>
-            <p>Los controles que no necesitas durante una revisión normal viven aquí.</p>
-          </div>
-        </div>
-        <div class="settings-list">
-          <button><span><strong>Perfil profesional</strong><small>Experiencia, skills y datos del candidato</small></span><b>›</b></button>
-          <button><span><strong>Preferencias de búsqueda</strong><small>Roles, ubicaciones, modalidad y salario</small></span><b>›</b></button>
-          <button><span><strong>Reglas</strong><small>Descartes automáticos, warnings y criterios</small></span><b>›</b></button>
-          <button><span><strong>Fuentes</strong><small>OpenClaw, email y futuras integraciones</small></span><b>›</b></button>
-          <button><span><strong>Notificaciones</strong><small>Telegram y resumen diario</small></span><b>›</b></button>
-          <button><span><strong>Avanzado</strong><small>Diagnóstico y controles técnicos</small></span><b>›</b></button>
-        </div>
+        <div class="section-heading"><div><p class="eyebrow">Administración</p><h2>Configuración</h2><p>Tu perfil de búsqueda y preferencias se editan en una sola pantalla.</p></div></div>
+        <div class="settings-status" id="profileSettingsStatus" role="status" aria-live="polite"></div>
+        <form class="profile-settings" id="profileSettingsForm">
+          <section class="settings-card">
+            <div class="settings-card-heading"><h3>Perfil de búsqueda</h3><p>Identifica tu configuración personal.</p></div>
+            <label class="settings-field"><span>Nombre del perfil</span><input id="profileName" name="profile_name" type="text" maxlength="200" required></label>
+          </section>
+          <section class="settings-card">
+            <div class="settings-card-heading"><h3>Salario mínimo</h3><p>Solo un salario publicado puede activar el descarte salarial.</p></div>
+            <div class="settings-columns">
+              <label class="settings-field"><span>Local Perú · S/ mensual</span><input id="salaryMinPen" name="salary_min_pen" type="number" min="0" step="100" required></label>
+              <label class="settings-field"><span>Multiplicador remoto/internacional</span><input id="remoteSalaryMultiplier" name="remote_salary_multiplier" type="number" min="1" max="5" step="0.05" required></label>
+            </div>
+            <p class="settings-derived">Mínimo remoto resultante: <strong id="remoteSalaryFloor">—</strong></p>
+          </section>
+          <section class="settings-card">
+            <div class="settings-card-heading"><h3>Qué oportunidades buscar</h3><p>Un término por línea; duplicados y espacios se normalizan.</p></div>
+            <div class="settings-columns">
+              <label class="settings-field"><span>Roles objetivo</span><textarea id="targetRoles" name="target_roles" rows="9"></textarea></label>
+              <label class="settings-field"><span>Ubicaciones válidas</span><textarea id="targetLocations" name="target_locations" rows="9"></textarea></label>
+            </div>
+            <div class="settings-columns">
+              <label class="settings-field"><span>Áreas foco</span><textarea id="targetAreas" name="target_areas" rows="9"></textarea></label>
+              <label class="settings-field"><span>Áreas adyacentes</span><textarea id="adjacentAreas" name="adjacent_areas" rows="9"></textarea></label>
+            </div>
+          </section>
+          <section class="settings-card">
+            <div class="settings-card-heading"><h3>Revisión diaria</h3><p>Horario usado para oportunidades en Revisar.</p></div>
+            <div class="settings-columns">
+              <label class="settings-field"><span>Hora</span><input id="dailyReviewTime" name="daily_review_time" type="time" required></label>
+              <label class="settings-field"><span>Zona horaria</span><input id="profileTimezone" name="timezone" type="text" maxlength="80" required></label>
+            </div>
+          </section>
+          <section class="settings-card rules-summary-card">
+            <div class="settings-card-heading"><h3>Reglas duras v1</h3><p>Las reglas duras nunca son anuladas por el matching positivo.</p></div>
+            <ul>
+              <li>Prácticas, asistente o junior → Descartar.</li>
+              <li>Presencial fuera de Lima Metropolitana → Descartar.</li>
+              <li>Salario local publicado por debajo del mínimo → Descartar.</li>
+              <li>Salario remoto/internacional publicado por debajo del mínimo remoto → Descartar.</li>
+              <li>Salario desconocido, grado o experiencia parcial → no descartar automáticamente.</li>
+            </ul>
+          </section>
+          <div class="settings-save-bar"><span id="settingsUnsavedHint">Los cambios se aplican al próximo análisis.</span><button class="primary" id="saveProfileSettings" type="submit">Guardar configuración</button></div>
+        </form>
       </section>
     </main>
   </div>
 
+  <dialog class="cv-dialog" id="cvDialog" aria-labelledby="cvDialogTitle">
+    <form id="cvForm">
+      <div class="cv-dialog-heading"><div><p class="eyebrow">Biblioteca de CVs</p><h2 id="cvDialogTitle">Añadir CV</h2></div><button type="button" class="icon-button" id="closeCvDialog" aria-label="Cerrar">×</button></div>
+      <input type="hidden" name="parent_cv_id" id="cvParentId">
+      <label><span>Nombre</span><input type="text" name="name" id="cvName" maxlength="200" required placeholder="Ej. CV HRBP"></label>
+      <div class="cv-form-columns">
+        <label><span>Rol objetivo</span><input type="text" name="target_role" id="cvTargetRole" maxlength="200" placeholder="Ej. Strategic HRBP"></label>
+        <label><span>Área objetivo</span><input type="text" name="target_area" id="cvTargetArea" maxlength="200" placeholder="Ej. People Analytics"></label>
+      </div>
+      <label><span>Contenido o notas</span><textarea name="content_text" id="cvContent" rows="8" placeholder="Texto del CV o notas para esta versión"></textarea></label>
+      <div class="cv-checks"><label><input type="checkbox" name="is_base" id="cvIsBase"> Marcar como CV base</label><label><input type="checkbox" name="activate" id="cvActivate"> Usar como CV activo</label></div>
+      <p class="cv-form-note">Crear una versión nueva nunca sobrescribe un CV existente.</p>
+      <div class="cv-dialog-actions"><button type="button" class="secondary" id="cancelCvDialog">Cancelar</button><button type="submit" class="primary" id="saveCvButton">Guardar CV</button></div>
+    </form>
+  </dialog>
+
   <script src="/app/app.js"></script>
   <script src="/app/applications.js"></script>
+  <script src="/app/cvs.js"></script>
+  <script src="/app/settings.js"></script>
 </body>
 </html>
