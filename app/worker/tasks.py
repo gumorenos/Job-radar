@@ -7,10 +7,11 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.db.enums import IngestionStatus, TaskStatus, TaskType
-from app.db.models import IngestionEvent, JobPosting, ProcessingTask
+from app.db.enums import IngestionStatus, NotificationStatus, TaskStatus, TaskType
+from app.db.models import IngestionEvent, JobPosting, Notification, ProcessingTask
 from app.domains.ingestion.processor import normalize_ingestion_event
 from app.domains.matching.service import analyze_job, enqueue_job_analysis
+from app.domains.notifications.delivery import deliver_notification
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,10 @@ def execute_task(session: Session, claimed: ClaimedTask) -> None:
             _ensure_pending_job_analysis(session, posting.job_id)
     elif claimed.task_type == TaskType.ANALYZE_MATCH:
         analyze_job(session, claimed.entity_id)
+    elif claimed.task_type == TaskType.SEND_NOTIFICATION:
+        if claimed.entity_type != "notification":
+            raise ValueError("SEND_NOTIFICATION tasks must target a notification entity.")
+        deliver_notification(session, claimed.entity_id)
     else:
         raise NotImplementedError(f"Unsupported task type: {claimed.task_type}")
 
@@ -163,5 +168,11 @@ def fail_task(session: Session, claimed: ClaimedTask, exc: Exception) -> None:
             event.status = IngestionStatus.FAILED
             event.error_code = task.error_code
             event.error_message = task.error_message
+
+    if terminal and claimed.entity_type == "notification":
+        notification = session.get(Notification, claimed.entity_id)
+        if notification is not None and notification.status == NotificationStatus.PENDING:
+            notification.status = NotificationStatus.FAILED
+            notification.error_message = task.error_message
 
     session.commit()
