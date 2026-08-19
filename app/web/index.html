@@ -7,6 +7,7 @@
   <link rel="icon" href="/app/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app/styles.css">
   <link rel="stylesheet" href="/app/radar.css">
+  <link rel="stylesheet" href="/app/applications.css">
 </head>
 <body>
   <div class="app-shell">
@@ -106,16 +107,18 @@
             <p>El ciclo de postulación está separado de la clasificación de compatibilidad.</p>
           </div>
         </div>
-        <div class="stage-grid">
-          <article><strong>Para postular</strong><span>0</span></article>
-          <article><strong>Postuladas</strong><span>0</span></article>
-          <article><strong>Entrevistas</strong><span>0</span></article>
-          <article><strong>Ofertas</strong><span>0</span></article>
-          <article><strong>Cerradas</strong><span>0</span></article>
+        <div class="stage-grid application-stages" aria-label="Etapas de postulación">
+          <button class="application-stage active" data-application-stage="TO_APPLY"><strong>Para postular</strong><span data-application-count="to_apply">—</span></button>
+          <button class="application-stage" data-application-stage="APPLIED"><strong>Postuladas</strong><span data-application-count="applied">—</span></button>
+          <button class="application-stage" data-application-stage="INTERVIEW"><strong>Entrevistas</strong><span data-application-count="interview">—</span></button>
+          <button class="application-stage" data-application-stage="OFFER"><strong>Ofertas</strong><span data-application-count="offer">—</span></button>
+          <button class="application-stage" data-application-stage="CLOSED"><strong>Cerradas</strong><span data-application-count="closed">—</span></button>
         </div>
-        <div class="empty-state panel-empty">
-          <h3>Todavía no hay postulaciones</h3>
-          <p>Cuando decidas perseguir una oportunidad desde Radar, aparecerá aquí.</p>
+        <div class="applications-list" id="applicationsList" aria-live="polite">
+          <div class="empty-state panel-empty">
+            <h3>Cargando postulaciones</h3>
+            <p>Preparando tu pipeline de búsqueda.</p>
+          </div>
         </div>
       </section>
 
@@ -163,7 +166,7 @@
     </main>
   </div>
 
-  <div class="prototype-note">Radar conectado · CRM, CVs y Configuración se habilitarán progresivamente</div>
   <script src="/app/app.js"></script>
+  <script src="/app/applications.js"></script>
 </body>
 </html>
