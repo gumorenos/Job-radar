@@ -48,6 +48,8 @@ def _notification(
     channel: NotificationChannel,
     notification_type: NotificationType,
     scheduled_for: datetime,
+    *,
+    delivered_at: datetime | None = None,
 ) -> Notification:
     return Notification(
         job_id=analysis.job_id,
@@ -55,7 +57,8 @@ def _notification(
         channel=channel,
         notification_type=notification_type,
         scheduled_for=scheduled_for,
-        status=NotificationStatus.PENDING,
+        sent_at=delivered_at,
+        status=(NotificationStatus.SENT if delivered_at else NotificationStatus.PENDING),
     )
 
 
@@ -88,6 +91,7 @@ def plan_match_notifications(
                 NotificationChannel.DASHBOARD,
                 NotificationType.IMMEDIATE,
                 current,
+                delivered_at=current,
             ),
             _notification(
                 analysis,
@@ -103,6 +107,7 @@ def plan_match_notifications(
                 NotificationChannel.DASHBOARD,
                 NotificationType.IMMEDIATE,
                 current,
+                delivered_at=current,
             ),
             _notification(
                 analysis,
