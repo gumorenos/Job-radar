@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -11,9 +12,16 @@ class IncomingJob(BaseModel):
     title: str | None = Field(default=None, max_length=300)
     company: str | None = Field(default=None, max_length=255)
     location: str | None = Field(default=None, max_length=255)
+    country: str | None = Field(default=None, max_length=100)
+    city: str | None = Field(default=None, max_length=120)
     work_mode: str | None = Field(default=None, max_length=80)
     employment_type: str | None = Field(default=None, max_length=120)
+    seniority: str | None = Field(default=None, max_length=120)
     salary_text: str | None = Field(default=None, max_length=500)
+    salary_min: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    salary_max: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    currency: str | None = Field(default=None, max_length=8)
+    salary_period: str | None = Field(default=None, max_length=40)
     description: str | None = None
     url: str | None = None
     published_at: datetime | None = None
