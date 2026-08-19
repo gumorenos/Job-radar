@@ -9,6 +9,7 @@ from threading import Event
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import get_session_factory
+from app.domains.notifications.delivery import enqueue_due_telegram_notifications
 from app.worker.tasks import claim_next_task, execute_task, fail_task, recover_stale_tasks
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,12 @@ def run() -> None:
     logger.info("worker_started worker_id=%s recovered_stale_tasks=%s", worker_id, recovered)
 
     while not _shutdown.is_set():
+        if settings.telegram_enabled:
+            with get_session_factory()() as notification_session:
+                enqueued = enqueue_due_telegram_notifications(notification_session)
+            if enqueued:
+                logger.info("worker_notifications_enqueued count=%s", enqueued)
+
         with get_session_factory()() as claim_session:
             claimed = claim_next_task(claim_session, worker_id)
 
