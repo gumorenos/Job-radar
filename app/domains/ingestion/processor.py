@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -8,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.enums import IngestionStatus, JobStatus, PostingStatus
+from app.db.enums import IngestionStatus, JobStatus, PostingStatus, WorkMode
 from app.db.models import Company, IngestionEvent, Job, JobPosting, PostingSighting
 from app.domains.jobs.normalization import (
     clean_text,
@@ -18,6 +19,12 @@ from app.domains.jobs.normalization import (
     normalize_work_mode,
     parse_datetime,
 )
+
+
+@dataclass(frozen=True)
+class NormalizationResult:
+    posting_id: UUID
+    analysis_required: bool
 
 
 def _job_payload(event: IngestionEvent) -> dict[str, Any]:
@@ -158,7 +165,92 @@ def _record_sighting(session: Session, event: IngestionEvent, posting: JobPostin
         )
 
 
-def normalize_ingestion_event(session: Session, event_id: UUID) -> UUID:
+def _update_existing_posting(
+    session: Session,
+    posting: JobPosting,
+    *,
+    title: str | None,
+    company_raw: str | None,
+    location: str | None,
+    description: str | None,
+    work_mode_value: object | None,
+    employment_type: str | None,
+    salary_text: str | None,
+    source_url_raw: str | None,
+    normalized_url: str | None,
+    published_at: datetime | None,
+    seen_at: datetime,
+) -> bool:
+    """Refresh a rediscovered posting and report whether matching inputs changed."""
+
+    job = session.get(Job, posting.job_id)
+    if job is None:
+        raise LookupError(f"Job {posting.job_id} does not exist for posting {posting.id}.")
+
+    material_change = False
+    posting.last_seen_at = seen_at
+    job.last_seen_at = seen_at
+
+    if title is not None and title != posting.title_raw:
+        posting.title_raw = title
+        if title != job.canonical_title:
+            job.canonical_title = title
+            job.title_key = comparison_key(title)
+            material_change = True
+
+    if company_raw is not None and company_raw != posting.company_raw:
+        posting.company_raw = company_raw
+        company, confidential = _company_for(session, company_raw)
+        new_company_id = company.id if company is not None else None
+        if (
+            new_company_id != job.company_id
+            or company_raw != job.company_name_raw
+            or confidential != job.company_is_confidential
+        ):
+            job.company_id = new_company_id
+            job.company_name_raw = company_raw
+            job.company_is_confidential = confidential
+            material_change = True
+
+    if location is not None and location != posting.location_raw:
+        posting.location_raw = location
+        if location != job.location_text:
+            job.location_text = location
+            material_change = True
+
+    if description is not None and description != posting.description_raw:
+        posting.description_raw = description
+        if description != job.description:
+            job.description = description
+            material_change = True
+
+    if employment_type is not None and employment_type != job.employment_type:
+        job.employment_type = employment_type
+        material_change = True
+
+    if work_mode_value is not None:
+        work_mode = normalize_work_mode(work_mode_value)
+        if work_mode != WorkMode.UNKNOWN and work_mode != job.work_mode:
+            job.work_mode = work_mode
+            material_change = True
+
+    if salary_text is not None and salary_text != posting.salary_text:
+        posting.salary_text = salary_text
+        material_change = True
+
+    # Source metadata is refreshed for traceability but does not by itself require rematching.
+    if source_url_raw is not None:
+        posting.source_url_raw = source_url_raw
+    if normalized_url is not None:
+        posting.source_url_normalized = normalized_url
+        posting.canonical_url = normalized_url
+    if published_at is not None:
+        posting.published_at = published_at
+
+    return material_change
+
+
+def normalize_ingestion_event(session: Session, event_id: UUID) -> NormalizationResult:
     event = session.get(IngestionEvent, event_id)
     if event is None:
         raise LookupError(f"Ingestion event {event_id} does not exist.")
@@ -186,14 +278,25 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> UUID:
         normalized_url=normalized_url,
     )
     if posting is not None:
-        posting.last_seen_at = event.received_at
-        posting_job = session.get(Job, posting.job_id)
-        if posting_job is not None:
-            posting_job.last_seen_at = event.received_at
+        analysis_required = _update_existing_posting(
+            session,
+            posting,
+            title=title,
+            company_raw=company_raw,
+            location=location,
+            description=description,
+            work_mode_value=work_mode_value,
+            employment_type=employment_type,
+            salary_text=salary_text,
+            source_url_raw=source_url_raw,
+            normalized_url=normalized_url,
+            published_at=published_at,
+            seen_at=event.received_at,
+        )
         _record_sighting(session, event, posting)
         event.status = IngestionStatus.COMPLETED
         event.processed_at = datetime.now(UTC)
-        return posting.id
+        return NormalizationResult(posting_id=posting.id, analysis_required=analysis_required)
 
     company, is_confidential = _company_for(session, company_raw)
     job = _job_for(
@@ -232,4 +335,4 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> UUID:
 
     event.status = IngestionStatus.COMPLETED
     event.processed_at = datetime.now(UTC)
-    return posting.id
+    return NormalizationResult(posting_id=posting.id, analysis_required=True)
