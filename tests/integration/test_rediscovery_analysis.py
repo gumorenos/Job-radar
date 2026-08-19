@@ -58,7 +58,14 @@ def _process_next() -> TaskType:
     return claimed.task_type
 
 
-def _ingest(client: TestClient, key: str, external_id: str, *, salary: str, description: str) -> None:
+def _ingest(
+    client: TestClient,
+    key: str,
+    external_id: str,
+    *,
+    salary: str,
+    description: str,
+) -> None:
     response = client.post(
         "/api/v1/ingestions/jobs",
         headers={**_auth_headers(), "Idempotency-Key": key},
