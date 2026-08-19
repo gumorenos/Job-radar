@@ -1,0 +1,71 @@
+.duplicate-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  padding: 15px 16px;
+  text-align: left;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  cursor: pointer;
+}
+.duplicate-row:last-child { border-bottom: 0; }
+.duplicate-row:hover { background: #fafbfc; }
+.duplicate-copy { min-width: 0; display: grid; gap: 5px; }
+.duplicate-copy strong { font-size: 14px; }
+.duplicate-copy span,
+.duplicate-copy small { color: var(--muted); }
+.duplicate-copy span { font-size: 12px; font-weight: 650; }
+.duplicate-copy small { font-size: 11px; line-height: 1.4; }
+.duplicate-confidence {
+  align-self: start;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #fff4df;
+  color: #855600;
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+.duplicate-compare { display: grid; gap: 10px; }
+.duplicate-job-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 13px;
+  background: #fff;
+}
+.duplicate-job-card h3 { margin: 0 0 5px; font-size: 15px; }
+.duplicate-job-card .duplicate-company { margin: 0 0 7px; color: #38445a; font-weight: 680; font-size: 13px; }
+.duplicate-job-card .duplicate-meta { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
+.duplicate-job-card .duplicate-description {
+  margin: 0;
+  color: #4a5568;
+  font-size: 12px;
+  line-height: 1.48;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.duplicate-reasons {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: #f7f8fa;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.duplicate-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.duplicate-actions button { min-height: 36px; }
+.duplicate-status { min-height: 18px; color: var(--muted); font-size: 11px; }
+.duplicate-status.error { color: #a12828; }
+
+@media (max-width: 760px) {
+  .duplicate-row { grid-template-columns: 1fr; gap: 9px; }
+  .duplicate-confidence { justify-self: start; }
+  .duplicate-actions { display: grid; grid-template-columns: 1fr; }
+  .duplicate-actions button { width: 100%; }
+}
