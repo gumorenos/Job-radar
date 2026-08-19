@@ -80,6 +80,12 @@ class ApplicationStage(StrEnum):
     CLOSED = "CLOSED"
 
 
+class DuplicateCandidateStatus(StrEnum):
+    PENDING = "PENDING"
+    MERGED = "MERGED"
+    KEPT_SEPARATE = "KEPT_SEPARATE"
+
+
 class CvApprovalStatus(StrEnum):
     DRAFT = "DRAFT"
     APPROVED = "APPROVED"
