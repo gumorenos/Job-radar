@@ -92,6 +92,7 @@ class MatchingRuleInput:
     work_mode: WorkMode
     industry: str | None = None
     monthly_salary_pen: Decimal | None = None
+    salary_published_unassessed: bool = False
     is_international_remote: bool = False
     degree_mismatch: bool = False
     degree_is_required: bool = False
@@ -183,18 +184,28 @@ def evaluate_business_rules(
     salary_too_low = (
         facts.monthly_salary_pen is not None and facts.monthly_salary_pen < salary_floor
     )
+    salary_unassessed = facts.monthly_salary_pen is None and facts.salary_published_unassessed
+    if salary_unassessed:
+        requires_review = True
     results.append(
         RuleResult(
             code="PUBLISHED_SALARY",
-            passed=not salary_too_low,
-            severity="HARD" if salary_too_low else "INFO",
+            passed=not salary_too_low and not salary_unassessed,
+            severity=(
+                "HARD" if salary_too_low else "WARNING" if salary_unassessed else "INFO"
+            ),
             message=(
                 f"El salario publicado está por debajo de S/{salary_floor:,.0f} mensuales."
                 if salary_too_low
                 else (
-                    "El salario no fue publicado; no se descarta."
-                    if facts.monthly_salary_pen is None
-                    else "El salario publicado cumple el mínimo aplicable."
+                    "Hay salario publicado, pero aún no está normalizado a PEN mensual; "
+                    "revisar antes de priorizar."
+                    if salary_unassessed
+                    else (
+                        "El salario no fue publicado; no se descarta."
+                        if facts.monthly_salary_pen is None
+                        else "El salario publicado cumple el mínimo aplicable."
+                    )
                 )
             ),
         )
