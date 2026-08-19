@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.enums import IngestionStatus, TaskStatus, TaskType
@@ -30,6 +31,32 @@ def _payload_hash(data: dict[str, object]) -> str:
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
+def _existing_idempotent_result(
+    session: Session,
+    *,
+    ingestion_source: str,
+    idempotency_key: str,
+    payload_hash: str,
+) -> IngestionResult | None:
+    existing = session.scalar(
+        select(IngestionEvent).where(
+            IngestionEvent.ingestion_source == ingestion_source,
+            IngestionEvent.idempotency_key == idempotency_key,
+        )
+    )
+    if existing is None:
+        return None
+    if existing.payload_hash != payload_hash:
+        raise IdempotencyConflictError(
+            "Idempotency key was already used with a different payload."
+        )
+    return IngestionResult(
+        ingestion_id=existing.id,
+        status="already_accepted",
+        received_at=existing.received_at,
+    )
+
+
 def accept_job_ingestion(
     session: Session,
     payload: JobIngestionRequest,
@@ -39,22 +66,14 @@ def accept_job_ingestion(
     payload_hash = _payload_hash(raw_payload)
 
     if idempotency_key:
-        existing = session.scalar(
-            select(IngestionEvent).where(
-                IngestionEvent.ingestion_source == payload.ingestion_source,
-                IngestionEvent.idempotency_key == idempotency_key,
-            )
+        existing = _existing_idempotent_result(
+            session,
+            ingestion_source=payload.ingestion_source,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
         )
         if existing is not None:
-            if existing.payload_hash != payload_hash:
-                raise IdempotencyConflictError(
-                    "Idempotency key was already used with a different payload."
-                )
-            return IngestionResult(
-                ingestion_id=existing.id,
-                status="already_accepted",
-                received_at=existing.received_at,
-            )
+            return existing
 
     received_at = datetime.now(UTC)
     ingestion = IngestionEvent(
@@ -69,7 +88,23 @@ def accept_job_ingestion(
         status=IngestionStatus.RECEIVED,
     )
     session.add(ingestion)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError:
+        # PostgreSQL serializes contenders on the unique source/idempotency constraint. If
+        # another request won the race, roll back this transaction and return that durable
+        # ingestion rather than surfacing an intermittent 500 to the source integration.
+        session.rollback()
+        if idempotency_key:
+            existing = _existing_idempotent_result(
+                session,
+                ingestion_source=payload.ingestion_source,
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+            )
+            if existing is not None:
+                return existing
+        raise
 
     session.add(
         ProcessingTask(
