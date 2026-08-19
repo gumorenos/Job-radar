@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
@@ -30,6 +31,15 @@ class NormalizationResult:
 def _job_payload(event: IngestionEvent) -> dict[str, Any]:
     raw_job = event.raw_payload.get("job")
     return raw_job if isinstance(raw_job, dict) else {}
+
+
+def _decimal_amount(value: object | None) -> Decimal | None:
+    if value is None or isinstance(value, (bool, dict, list)):
+        return None
+    try:
+        return Decimal(str(value).strip().replace(",", ""))
+    except (InvalidOperation, ValueError):
+        return None
 
 
 def _find_existing_posting(
@@ -86,8 +96,11 @@ def _job_for(
     company_is_confidential: bool,
     description: str | None,
     location: str | None,
+    country: str | None,
+    city: str | None,
     work_mode_value: object | None,
     employment_type: str | None,
+    seniority: str | None,
     seen_at: datetime,
 ) -> Job:
     settings = get_settings()
@@ -126,6 +139,12 @@ def _job_for(
             existing.description = description
         if not existing.location_text and location:
             existing.location_text = location
+        if not existing.country and country:
+            existing.country = country
+        if not existing.city and city:
+            existing.city = city
+        if not existing.seniority and seniority:
+            existing.seniority = seniority
         return existing
 
     job = Job(
@@ -136,8 +155,11 @@ def _job_for(
         company_is_confidential=company_is_confidential,
         description=description,
         location_text=location,
+        country=country,
+        city=city,
         work_mode=normalize_work_mode(work_mode_value),
         employment_type=employment_type,
+        seniority=seniority,
         status=JobStatus.ACTIVE,
         first_seen_at=seen_at,
         last_seen_at=seen_at,
@@ -172,10 +194,17 @@ def _update_existing_posting(
     title: str | None,
     company_raw: str | None,
     location: str | None,
+    country: str | None,
+    city: str | None,
     description: str | None,
     work_mode_value: object | None,
     employment_type: str | None,
+    seniority: str | None,
     salary_text: str | None,
+    salary_min: Decimal | None,
+    salary_max: Decimal | None,
+    currency: str | None,
+    salary_period: str | None,
     source_url_raw: str | None,
     normalized_url: str | None,
     published_at: datetime | None,
@@ -218,14 +247,22 @@ def _update_existing_posting(
             job.location_text = location
             material_change = True
 
+    if country is not None and country != job.country:
+        job.country = country
+        material_change = True
+    if city is not None and city != job.city:
+        job.city = city
+        material_change = True
     if description is not None and description != posting.description_raw:
         posting.description_raw = description
         if description != job.description:
             job.description = description
             material_change = True
-
     if employment_type is not None and employment_type != job.employment_type:
         job.employment_type = employment_type
+        material_change = True
+    if seniority is not None and seniority != job.seniority:
+        job.seniority = seniority
         material_change = True
 
     if work_mode_value is not None:
@@ -237,8 +274,19 @@ def _update_existing_posting(
     if salary_text is not None and salary_text != posting.salary_text:
         posting.salary_text = salary_text
         material_change = True
+    if salary_min is not None and salary_min != posting.salary_min:
+        posting.salary_min = salary_min
+        material_change = True
+    if salary_max is not None and salary_max != posting.salary_max:
+        posting.salary_max = salary_max
+        material_change = True
+    if currency is not None and currency != posting.currency:
+        posting.currency = currency
+        material_change = True
+    if salary_period is not None and salary_period != posting.salary_period:
+        posting.salary_period = salary_period
+        material_change = True
 
-    # Source metadata is refreshed for traceability but does not by itself require rematching.
     if source_url_raw is not None:
         posting.source_url_raw = source_url_raw
     if normalized_url is not None:
@@ -261,10 +309,18 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
     title = clean_text(raw_job.get("title"))
     company_raw = clean_text(raw_job.get("company"))
     location = clean_text(raw_job.get("location"))
+    country = clean_text(raw_job.get("country"))
+    city = clean_text(raw_job.get("city"))
     description = clean_text(raw_job.get("description"))
     work_mode_value = raw_job.get("work_mode") or raw_job.get("modality") or raw_job.get("remote")
     employment_type = clean_text(raw_job.get("employment_type"))
+    seniority = clean_text(raw_job.get("seniority"))
     salary_text = clean_text(raw_job.get("salary_text"))
+    salary_min = _decimal_amount(raw_job.get("salary_min"))
+    salary_max = _decimal_amount(raw_job.get("salary_max"))
+    currency_value = clean_text(raw_job.get("currency"))
+    currency = currency_value.upper() if currency_value else None
+    salary_period = clean_text(raw_job.get("salary_period"))
     source_url_raw = clean_text(raw_job.get("url"))
     normalized_url = normalize_url(source_url_raw)
     published_at = parse_datetime(raw_job.get("published_at"))
@@ -284,10 +340,17 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
             title=title,
             company_raw=company_raw,
             location=location,
+            country=country,
+            city=city,
             description=description,
             work_mode_value=work_mode_value,
             employment_type=employment_type,
+            seniority=seniority,
             salary_text=salary_text,
+            salary_min=salary_min,
+            salary_max=salary_max,
+            currency=currency,
+            salary_period=salary_period,
             source_url_raw=source_url_raw,
             normalized_url=normalized_url,
             published_at=published_at,
@@ -307,8 +370,11 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
         company_is_confidential=is_confidential,
         description=description,
         location=location,
+        country=country,
+        city=city,
         work_mode_value=work_mode_value,
         employment_type=employment_type,
+        seniority=seniority,
         seen_at=event.received_at,
     )
 
@@ -324,6 +390,10 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
         location_raw=location,
         description_raw=description,
         salary_text=salary_text,
+        salary_min=salary_min,
+        salary_max=salary_max,
+        currency=currency,
+        salary_period=salary_period,
         published_at=published_at,
         first_seen_at=event.received_at,
         last_seen_at=event.received_at,
