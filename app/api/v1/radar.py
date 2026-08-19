@@ -7,14 +7,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
-from app.db.enums import Classification, JobStatus
+from app.db.enums import Classification, DuplicateCandidateStatus, JobStatus
 from app.db.models import (
     ClassificationFeedback,
     Company,
+    DuplicateCandidate,
     Job,
     JobPosting,
     MatchAnalysis,
@@ -184,7 +185,7 @@ def _matches_view(classification: Classification | None, view: RadarView) -> boo
         return classification in (None, Classification.REVIEW)
     if view == "discarded":
         return classification == Classification.DISCARD
-    # Uncertain duplicate review is a later workflow; exact duplicates already merge on ingestion.
+    # Possible duplicates are served as pairs by /api/v1/radar/duplicates.
     return False
 
 
@@ -221,9 +222,19 @@ def radar_summary(session: SessionDep) -> RadarSummary:
         elif classification == Classification.DISCARD:
             discarded += 1
         else:
-            # Until an analysis exists, an active job belongs in the human review queue.
             review += 1
-    return RadarSummary(high=high, review=review, discarded=discarded, duplicates=0)
+
+    duplicates = session.scalar(
+        select(func.count(DuplicateCandidate.id)).where(
+            DuplicateCandidate.status == DuplicateCandidateStatus.PENDING
+        )
+    ) or 0
+    return RadarSummary(
+        high=high,
+        review=review,
+        discarded=discarded,
+        duplicates=int(duplicates),
+    )
 
 
 @router.get("/jobs", response_model=RadarJobList)
