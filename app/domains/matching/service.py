@@ -16,6 +16,7 @@ from app.domains.matching.rules import (
     RuleResult,
     evaluate_business_rules,
 )
+from app.domains.notifications.service import plan_match_notifications
 
 ANALYZER_VERSION = "rules-v2"
 
@@ -212,6 +213,7 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
     )
     session.add(analysis)
     session.flush()
+    plan_match_notifications(session, analysis, profile)
     return analysis
 
 
