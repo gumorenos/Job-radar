@@ -17,9 +17,11 @@ def test_application_shell_exposes_complete_core_navigation() -> None:
     assert 'id="opportunitySearch"' in response.text
     assert 'name="opportunity_search"' in response.text
     assert 'href="/app/favicon.svg"' in response.text
+    assert 'src="/app/duplicates.js"' in response.text
     assert 'src="/app/applications.js"' in response.text
     assert 'src="/app/cvs.js"' in response.text
     assert 'src="/app/settings.js"' in response.text
+    assert 'href="/app/duplicates.css"' in response.text
     assert 'href="/app/applications.css"' in response.text
     assert 'href="/app/settings.css"' in response.text
     assert 'id="applicationsList"' in response.text
@@ -31,6 +33,8 @@ def test_application_shell_exposes_complete_core_navigation() -> None:
 def test_application_shell_serves_core_frontend_assets() -> None:
     with TestClient(app) as client:
         favicon = client.get("/app/favicon.svg")
+        duplicates_js = client.get("/app/duplicates.js")
+        duplicates_css = client.get("/app/duplicates.css")
         applications_js = client.get("/app/applications.js")
         applications_css = client.get("/app/applications.css")
         cvs_js = client.get("/app/cvs.js")
@@ -40,6 +44,10 @@ def test_application_shell_serves_core_frontend_assets() -> None:
 
     assert favicon.status_code == 200
     assert favicon.headers["content-type"].startswith("image/svg+xml")
+    assert duplicates_js.status_code == 200
+    assert "Mantener separadas" in duplicates_js.text
+    assert duplicates_css.status_code == 200
+    assert ".duplicate-row" in duplicates_css.text
     assert applications_js.status_code == 200
     assert "Añadir a postulaciones" in applications_js.text
     assert applications_css.status_code == 200
