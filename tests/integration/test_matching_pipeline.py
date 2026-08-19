@@ -2,14 +2,22 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from app.core.config import get_settings
-from app.db.enums import Classification, TaskStatus, TaskType
-from app.db.models import CandidateProfile, MatchAnalysis, ProcessingTask
+from app.db.enums import (
+    Classification,
+    NotificationChannel,
+    NotificationStatus,
+    NotificationType,
+    TaskStatus,
+    TaskType,
+)
+from app.db.models import CandidateProfile, MatchAnalysis, Notification, ProcessingTask
 from app.db.session import get_engine, get_session_factory
 from app.main import app
 from app.worker.tasks import claim_next_task, execute_task
@@ -100,15 +108,17 @@ def test_worker_discards_excluded_seniority_and_radar_reflects_it() -> None:
 
     with get_session_factory()() as session:
         analysis = session.scalar(select(MatchAnalysis))
+        notification_count = session.scalar(select(func.count()).select_from(Notification))
         assert analysis is not None
         assert analysis.classification == Classification.DISCARD
         assert analysis.analyzer_version == "rules-v2"
+        assert notification_count == 0
         results = analysis.rule_results["results"]
         seniority = next(item for item in results if item["code"] == "SENIORITY_TITLE")
         assert seniority["severity"] == "HARD"
 
 
-def test_worker_creates_review_analysis_and_default_profile() -> None:
+def test_worker_creates_review_analysis_and_daily_review_notification() -> None:
     with TestClient(app) as client:
         _ingest(
             client,
@@ -126,6 +136,9 @@ def test_worker_creates_review_analysis_and_default_profile() -> None:
         analysis = session.scalar(select(MatchAnalysis))
         profile = session.scalar(select(CandidateProfile))
         tasks = list(session.scalars(select(ProcessingTask).order_by(ProcessingTask.created_at)))
+        notifications = list(
+            session.scalars(select(Notification).order_by(Notification.channel.asc()))
+        )
 
         assert analysis is not None
         assert analysis.classification == Classification.REVIEW
@@ -139,6 +152,16 @@ def test_worker_creates_review_analysis_and_default_profile() -> None:
             TaskType.ANALYZE_MATCH,
         ]
         assert all(task.status == TaskStatus.COMPLETED for task in tasks)
+        assert len(notifications) == 2
+        assert all(item.status == NotificationStatus.PENDING for item in notifications)
+
+        by_channel = {item.channel: item for item in notifications}
+        dashboard = by_channel[NotificationChannel.DASHBOARD]
+        telegram = by_channel[NotificationChannel.TELEGRAM]
+        assert dashboard.notification_type == NotificationType.IMMEDIATE
+        assert telegram.notification_type == NotificationType.DAILY_REVIEW
+        assert telegram.scheduled_for is not None
+        assert telegram.scheduled_for.astimezone(ZoneInfo("America/Lima")).hour == 21
 
 
 def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
@@ -169,6 +192,7 @@ def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
 
     with get_session_factory()() as session:
         analysis = session.scalar(select(MatchAnalysis))
+        notifications = list(session.scalars(select(Notification)))
         assert analysis is not None
         assert analysis.classification == Classification.HIGH_PRIORITY
         assert analysis.analyzer_version == "rules-v2"
@@ -176,6 +200,13 @@ def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
         assert "Senior Analyst" in analysis.skill_analysis["role_matches"]
         assert "People Analytics" in analysis.skill_analysis["core_area_matches"]
         assert analysis.strengths
+        assert len(notifications) == 2
+        assert {item.channel for item in notifications} == {
+            NotificationChannel.DASHBOARD,
+            NotificationChannel.TELEGRAM,
+        }
+        assert all(item.notification_type == NotificationType.IMMEDIATE for item in notifications)
+        assert all(item.status == NotificationStatus.PENDING for item in notifications)
 
 
 def test_remote_latam_salary_below_remote_floor_is_discarded() -> None:
@@ -195,8 +226,10 @@ def test_remote_latam_salary_below_remote_floor_is_discarded() -> None:
 
     with get_session_factory()() as session:
         analysis = session.scalar(select(MatchAnalysis))
+        notification_count = session.scalar(select(func.count()).select_from(Notification))
         assert analysis is not None
         assert analysis.classification == Classification.DISCARD
+        assert notification_count == 0
         salary_rule = next(
             item
             for item in analysis.rule_results["results"]
