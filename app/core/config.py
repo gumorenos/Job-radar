@@ -7,6 +7,8 @@ from typing import Literal
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_INSECURE_API_KEYS = {"change-me-before-use", "dev-only-change-me"}
+
 
 class Settings(BaseSettings):
     """Runtime configuration loaded from JOB_RADAR_* environment variables."""
@@ -31,6 +33,23 @@ class Settings(BaseSettings):
     telegram_enabled: bool = False
     telegram_bot_token: SecretStr = SecretStr("")
     telegram_chat_id: str = ""
+
+    def validate_runtime(self) -> None:
+        """Fail fast on unsafe production or incomplete external-service settings."""
+
+        api_key = self.api_key.get_secret_value().strip()
+        if self.app_env == "production":
+            if not api_key or api_key in _INSECURE_API_KEYS:
+                raise RuntimeError("Production requires a non-default JOB_RADAR_API_KEY.")
+            if "job_radar_dev" in self.database_url:
+                raise RuntimeError("Production cannot use the development database password.")
+
+        if self.telegram_enabled:
+            token = self.telegram_bot_token.get_secret_value().strip()
+            if not token or not self.telegram_chat_id.strip():
+                raise RuntimeError(
+                    "Telegram delivery is enabled but bot token/chat id are incomplete."
+                )
 
 
 @lru_cache(maxsize=1)
