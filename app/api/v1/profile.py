@@ -4,6 +4,7 @@ from datetime import time
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
@@ -72,12 +73,24 @@ class CandidateProfileUpdate(BaseModel):
             raise ValueError("Se permiten como máximo 100 términos por grupo.")
         return cleaned
 
-    @field_validator("name", "timezone")
+    @field_validator("name")
     @classmethod
-    def clean_text(cls, value: str) -> str:
+    def clean_name(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("El valor no puede estar vacío.")
+            raise ValueError("El nombre no puede estar vacío.")
+        return cleaned
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("La zona horaria no puede estar vacía.")
+        try:
+            ZoneInfo(cleaned)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("Usa una zona horaria IANA válida, por ejemplo America/Lima.") from exc
         return cleaned
 
 
