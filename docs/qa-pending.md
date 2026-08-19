@@ -21,47 +21,37 @@ Este archivo registra validaciones que requieren el VPS Oracle/ARM64, navegador 
 **PR:** #8 — `CRM: add applications lifecycle`  
 **Branch:** `feat/applications-crm-v1`  
 **HEAD esperado:** `125dc42d25f006ff58b06deed669f3f89e273ac8`  
+**CI GitHub:** PASS  
 **Bloquea merge:** Sí
 
 ### Validación estática y runtime
 
-1. `uv sync --locked`
+1. `uv sync --locked`.
 2. Ruff, mypy y unit tests.
-3. Docker Compose config/build.
-4. Confirmar imagen ARM64.
-5. Levantar PostgreSQL aislado.
-6. `alembic upgrade head`.
-7. Levantar API y worker.
-8. `/health`, `/ready` y `/app/` deben responder 200.
-9. Con `.env` exportado, ejecutar `tests/integration`.
-10. Confirmar que existe la tabla `job_applications`.
+3. Docker Compose config/build y confirmar imagen ARM64.
+4. Levantar PostgreSQL aislado, `alembic upgrade head`, API y worker.
+5. `/health`, `/ready` y `/app/` deben responder 200.
+6. Con `.env` exportado, ejecutar `tests/integration`.
+7. Confirmar que existe la tabla `job_applications`.
 
 ### Flujo funcional
 
-Ingestar una vacante ficticia `Strategic HRBP QA CRM`, empresa `QA CRM Corp`, Lima, híbrida, sin salario. Esperar `NORMALIZE_INGESTION` y `ANALYZE_MATCH` en `COMPLETED`; la clasificación debe quedar `REVIEW`.
+Ingestar `Strategic HRBP QA CRM`, empresa `QA CRM Corp`, Lima, híbrida, sin salario. Esperar `NORMALIZE_INGESTION` y `ANALYZE_MATCH` en `COMPLETED`; la clasificación debe quedar `REVIEW`.
 
-Desde `/app/`:
-
-1. Radar → Revisar → abrir la vacante.
-2. Añadir a Postulaciones.
-3. Confirmar `Para postular = 1` y una sola fila CRM.
-4. Cambiar a `Postulada`; debe crearse `applied_at`.
-5. Cambiar `Entrevista → Oferta → Cerrada`; conteos y lista deben seguir el cambio.
-6. Reabrir a `Entrevista`; `closed_at` debe volver a `NULL` y `applied_at` conservarse.
-7. Intentar añadir de nuevo desde Radar; no debe duplicarse (`job_applications count = 1`).
-8. `MatchAnalysis` debe seguir `REVIEW`; el estado CRM nunca altera la clasificación de matching.
+1. Radar → Revisar → abrir la vacante → Añadir a Postulaciones.
+2. Confirmar `Para postular = 1` y una sola fila CRM.
+3. Cambiar a `Postulada`; debe crearse `applied_at`.
+4. Cambiar `Entrevista → Oferta → Cerrada`; conteos/lista deben seguir el cambio.
+5. Reabrir a `Entrevista`; `closed_at = NULL` y `applied_at` se conserva.
+6. Intentar añadir de nuevo desde Radar; no debe duplicarse (`job_applications count = 1`).
+7. `MatchAnalysis` debe seguir `REVIEW`; el estado CRM nunca altera matching.
 
 ### UX
 
-- Desktop 1366×768.
-- Mobile 390×844.
-- Consola del navegador limpia.
-- Confirmar que ya no existe la barra flotante inferior que solapaba el panel de detalle.
-- API y PostgreSQL expuestos solo en localhost.
-
-### Criterio de cierre
-
-PASS únicamente si runtime, migración, integración, flujo CRM, timestamps, idempotencia, separación matching/CRM y UX pasan sin cambios de código ni de producción.
+- Desktop 1366×768 y mobile 390×844.
+- Consola limpia.
+- Confirmar que ya no existe la barra flotante inferior que solapaba el detalle.
+- API y PostgreSQL solo localhost.
 
 ---
 
@@ -70,37 +60,98 @@ PASS únicamente si runtime, migración, integración, flujo CRM, timestamps, id
 **Estado:** PENDIENTE  
 **PR:** #9 — `CVs: add versioned personal library`  
 **Branch:** `feat/cv-library-v1`  
-**HEAD esperado:** `486eaa5e253f505aa2e84502730c6a52197b2384`  
+**HEAD esperado:** `5d11f0927db16dcc93026396134291f8c888adcb`  
 **CI GitHub:** PASS  
 **Bloquea merge:** Sí
 
 ### Runtime
 
-1. Ejecutar `uv sync --locked`, Ruff, mypy y unit tests.
+1. `uv sync --locked`, Ruff, mypy y unit tests.
 2. Build Docker y confirmar `arm64`.
-3. Levantar PostgreSQL, ejecutar `alembic upgrade head`, API y worker.
-4. Confirmar `/health`, `/ready`, `/app/` y `/app/cvs.js` = 200.
+3. PostgreSQL, `alembic upgrade head`, API y worker.
+4. `/health`, `/ready`, `/app/` y `/app/cvs.js` = 200.
 5. Con `.env` exportado ejecutar `tests/integration`.
 
 ### Flujo CV
 
-1. Abrir `/app/#/cvs`; inicialmente debe cargar desde `/api/v1/cvs` sin errores.
-2. Añadir `CV Base QA`, marcarlo Base y Activo. Debe quedar `APPROVED`, `is_base=true`, `is_active=true`.
-3. Crear `Nueva versión`; debe conservar la original, crear versión 2 y `parent_cv_id` debe apuntar a la versión 1.
+1. Abrir `/app/#/cvs`; debe cargar `/api/v1/cvs` sin errores.
+2. Añadir `CV Base QA`, marcar Base y Activo. Debe quedar `APPROVED`, `is_base=true`, `is_active=true`.
+3. Crear Nueva versión; preservar original, crear versión 2 y enlazar `parent_cv_id`.
 4. Confirmar que solo una versión queda activa.
-5. Crear por API un CV con `generated_by_ai=true`. Debe quedar `DRAFT`, mostrarse como `IA` y no poder activarse (`409`).
-6. Aprobar el borrador desde la UI y luego activarlo. Debe quedar `APPROVED` y pasar a ser el único activo.
-7. Crear otro borrador IA y rechazarlo; debe quedar `REJECTED` e inactivo.
-8. Confirmar en PostgreSQL que ninguna creación/versionado sobrescribió el contenido de versiones anteriores.
+5. Crear por API `generated_by_ai=true`: debe quedar `DRAFT`, mostrarse `IA` y no poder activarse (`409`).
+6. Intentar crear un borrador IA como Base: debe devolver `409` y no modificar el Base actual.
+7. Aprobar el borrador desde UI y activarlo: `APPROVED` y único activo.
+8. Crear otro borrador IA y rechazarlo: `REJECTED` e inactivo.
+9. PostgreSQL debe conservar intacto el contenido de versiones anteriores.
 
 ### UX
 
 - Desktop 1366×768 y mobile 390×844.
-- Dialog de Añadir/Nueva versión usable sin overflow bloqueante.
+- Dialog Añadir/Nueva versión usable sin overflow bloqueante.
 - Mensajes de guardado/aprobación/activación visibles.
-- Consola limpia y requests de CVs sin 4xx/5xx inesperados.
+- Consola limpia y requests sin 4xx/5xx inesperados.
 - API/PostgreSQL solo localhost.
 
-### Criterio de cierre
+---
 
-PASS si versionado, aprobación explícita de IA, activación única, preservación del original, API, UI y ARM64 funcionan sin modificar código ni producción.
+## QA-003 — Matching positive fit v2
+
+**Estado:** PENDIENTE  
+**PR:** #10 — `Matching: add positive-fit high priority signals`  
+**Branch:** `feat/matching-fit-v2`  
+**HEAD esperado:** `63d53a5509615ff3b69462f4f88b76131334da9a`  
+**CI GitHub:** PASS  
+**Bloquea merge:** Sí
+
+### Objetivo
+
+Validar que `rules-v2` puede elevar oportunidades realmente fuertes a `HIGH_PRIORITY` sin permitir que señales positivas anulen descartes duros ni warnings.
+
+### Casos
+
+1. Ejecutar estáticos/unit/integration, build ARM64, PostgreSQL/Alembic/API/worker.
+2. `Analista Junior de RRHH`, Lima, S/9,000 → `DISCARD` por seniority.
+3. `Strategic HR Business Partner`, Lima, híbrido, sin descripción de área foco → `REVIEW`.
+4. `Senior People Analytics Analyst`, Lima, híbrido, S/9,000, descripción con People Analytics/HR Analytics → `HIGH_PRIORITY`, `analyzer_version=rules-v2`, `recommendation=PRIORIZAR`.
+5. El caso anterior debe guardar `role_matches`, `core_area_matches`, strengths y explicación legible.
+6. Mismo encaje fuerte remoto LATAM con salario S/7,500 → `DISCARD`; el hard rule salarial gana.
+7. Un rol objetivo con solo área adyacente debe seguir `REVIEW`, no `HIGH_PRIORITY`.
+8. Salario desconocido no debe descartar ni borrar un encaje positivo fuerte.
+9. Radar debe reflejar correctamente Alta prioridad/Revisar/Descartadas y detalle explicable.
+10. Desktop/mobile/console sin errores y exposición solo localhost.
+
+---
+
+## QA-004 — Profile settings v1
+
+**Estado:** PENDIENTE  
+**PR:** #11 — `Settings: make search profile editable`  
+**Branch:** `feat/profile-settings-v1`  
+**HEAD esperado:** `e89d1d9eb64b7824c701feff4939790bd21381bf`  
+**CI GitHub:** PASS  
+**Bloquea merge:** Sí
+
+### Objetivo
+
+Validar que Configuración permite editar el perfil de búsqueda en una sola pantalla y que esos cambios persisten sin tocar reglas internas ni crear perfiles duplicados.
+
+### Casos
+
+1. Ejecutar estáticos/unit/integration, build ARM64, PostgreSQL/Alembic/API/worker.
+2. `/app/`, `/app/settings.js`, `/app/settings.css`, `/api/v1/profile` = 200.
+3. Abrir `/app/#/settings`; debe cargar un único perfil activo.
+4. Editar nombre, salario local a S/7,200 y multiplicador remoto a 1.15; UI debe mostrar mínimo remoto S/8,280.
+5. Editar roles, ubicaciones, áreas foco y adyacentes; duplicados/espacios deben normalizarse al guardar.
+6. Cambiar hora de revisión a 20:30 y mantener `America/Lima`.
+7. Recargar: todos los valores deben persistir y `candidate_profiles count = 1`.
+8. `rules` debe conservarse sin alteración.
+9. Multiplicador menor que 1 debe ser rechazado por API con 422.
+10. Ingestar una vacante con salario local S/7,100 después del cambio a S/7,200: el siguiente análisis debe usar el nuevo mínimo y descartarla.
+11. Desktop 1366×768 y mobile 390×844; save bar, textareas y campos sin solapes; consola limpia.
+12. API/PostgreSQL solo localhost.
+
+---
+
+## Cierre de un bloque
+
+Un bloque pasa a PASS solo cuando OpenClaw confirme el HEAD exacto, runtime ARM64, pruebas automatizadas, flujo funcional, UX solicitada, ausencia de cambios de código/producción y limpieza del entorno QA. Hasta entonces el PR correspondiente permanece sin merge.
