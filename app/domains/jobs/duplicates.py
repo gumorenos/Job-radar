@@ -10,15 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.enums import ApplicationStage, DuplicateCandidateStatus, JobStatus
-from app.db.models import (
-    ClassificationFeedback,
-    DuplicateCandidate,
-    Job,
-    JobApplication,
-    JobPosting,
-    MatchAnalysis,
-    Notification,
-)
+from app.db.models import DuplicateCandidate, Job, JobApplication, JobPosting
 from app.domains.jobs.normalization import comparison_key
 
 _STAGE_RANK = {
@@ -239,6 +231,8 @@ def merge_duplicate_candidate(
     *,
     now: datetime | None = None,
 ) -> Job:
+    """Merge source/application state while preserving immutable historical analyses."""
+
     if candidate.status != DuplicateCandidateStatus.PENDING:
         raise ValueError("Duplicate candidate has already been resolved.")
     if survivor_job_id not in {candidate.job_a_id, candidate.job_b_id}:
@@ -255,19 +249,11 @@ def merge_duplicate_candidate(
     resolved_at = now or datetime.now(UTC)
     _merge_application(session, survivor, duplicate)
 
+    # Sources belong to the surviving logical vacancy. Historical MatchAnalysis, feedback and
+    # notifications deliberately remain attached to the closed duplicate job: those rows are
+    # audit records of what Job Radar decided before the human merge and must not be rewritten.
     session.execute(
         update(JobPosting).where(JobPosting.job_id == duplicate.id).values(job_id=survivor.id)
-    )
-    session.execute(
-        update(MatchAnalysis).where(MatchAnalysis.job_id == duplicate.id).values(job_id=survivor.id)
-    )
-    session.execute(
-        update(ClassificationFeedback)
-        .where(ClassificationFeedback.job_id == duplicate.id)
-        .values(job_id=survivor.id)
-    )
-    session.execute(
-        update(Notification).where(Notification.job_id == duplicate.id).values(job_id=survivor.id)
     )
 
     children = list(
