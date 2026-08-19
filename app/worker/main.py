@@ -23,6 +23,7 @@ def _request_shutdown(signum: int, _frame: object) -> None:
 
 def run() -> None:
     settings = get_settings()
+    settings.validate_runtime()
     configure_logging(settings.log_level)
     worker_id = f"{socket.gethostname()}:{os.getpid()}"
 
