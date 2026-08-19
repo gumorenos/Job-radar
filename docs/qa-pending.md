@@ -127,7 +127,7 @@ Validar que `rules-v2` puede elevar oportunidades realmente fuertes a `HIGH_PRIO
 **Estado:** PENDIENTE  
 **PR:** #11 — `Settings: make search profile editable`  
 **Branch:** `feat/profile-settings-v1`  
-**HEAD esperado:** `e89d1d9eb64b7824c701feff4939790bd21381bf`  
+**HEAD esperado:** `784035f3807bee45fe08db4a79402bbc53d80c26`  
 **CI GitHub:** PASS  
 **Bloquea merge:** Sí
 
@@ -145,10 +145,40 @@ Validar que Configuración permite editar el perfil de búsqueda en una sola pan
 6. Cambiar hora de revisión a 20:30 y mantener `America/Lima`.
 7. Recargar: todos los valores deben persistir y `candidate_profiles count = 1`.
 8. `rules` debe conservarse sin alteración.
-9. Multiplicador menor que 1 debe ser rechazado por API con 422.
+9. Multiplicador menor que 1 y zona horaria IANA inválida deben devolver 422.
 10. Ingestar una vacante con salario local S/7,100 después del cambio a S/7,200: el siguiente análisis debe usar el nuevo mínimo y descartarla.
 11. Desktop 1366×768 y mobile 390×844; save bar, textareas y campos sin solapes; consola limpia.
 12. API/PostgreSQL solo localhost.
+
+---
+
+## QA-005 — Notification planner v1
+
+**Estado:** PENDIENTE  
+**PR:** #12 — `Notifications: plan dashboard and Telegram intents`  
+**Branch:** `feat/notification-planner-v1`  
+**HEAD esperado:** `94d2161596e086489f3b62d129084fbca20a6561`  
+**CI GitHub:** PASS  
+**Dependencia:** PR #10 / Matching v2  
+**Bloquea merge:** Sí
+
+### Objetivo
+
+Validar que el sistema crea intenciones de notificación correctas sin enviar todavía mensajes externos ni afectar el worker cuando Telegram no está configurado.
+
+### Casos
+
+1. Ejecutar estáticos/unit/integration, build ARM64, PostgreSQL/Alembic/API/worker.
+2. Vacante `DISCARD` → cero filas nuevas en `notifications`.
+3. Vacante `HIGH_PRIORITY` → dos filas PENDING: `DASHBOARD/IMMEDIATE` y `TELEGRAM/IMMEDIATE`.
+4. Vacante `REVIEW` → `DASHBOARD/IMMEDIATE` + `TELEGRAM/DAILY_REVIEW`.
+5. Para perfil `America/Lima` con revisión 21:00, la fila DAILY_REVIEW debe programarse a las 21:00 local; si ya pasó, al día siguiente.
+6. Reejecutar el planner sobre el mismo `MatchAnalysis` no debe duplicar filas.
+7. `/api/v1/notifications/summary` debe reflejar estados correctamente.
+8. `/api/v1/notifications` debe filtrar por status/channel/type y devolver título/empresa correctos.
+9. No debe existir ninguna tarea `SEND_NOTIFICATION` en esta etapa y no debe salir tráfico a Telegram.
+10. Ingesta y matching deben completar normalmente sin credenciales Telegram.
+11. Logs sin tokens, payloads sensibles ni errores; API/PostgreSQL solo localhost.
 
 ---
 
