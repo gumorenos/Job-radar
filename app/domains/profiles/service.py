@@ -31,6 +31,8 @@ def get_or_create_active_profile(session: Session) -> CandidateProfile:
             "Supervisor",
             "HR Business Partner",
             "Senior HRBP",
+            "Strategic HRBP",
+            "Jefe",
             "Lead",
             "Manager",
             "Gerente",
@@ -42,6 +44,9 @@ def get_or_create_active_profile(session: Session) -> CandidateProfile:
             "Compensaciones",
             "Relaciones Laborales",
             "HR Analytics",
+            "Recursos Humanos",
+            "Capital Humano",
+            "Gestión de Personas",
         ],
         adjacent_areas=[
             "People Operations",
@@ -53,6 +58,7 @@ def get_or_create_active_profile(session: Session) -> CandidateProfile:
             "Employee Experience",
             "Total Rewards",
             "HRIS",
+            "HR Systems",
         ],
         rules={"source": "phase-0-confirmed-rules"},
     )
