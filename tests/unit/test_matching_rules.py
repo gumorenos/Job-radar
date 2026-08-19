@@ -68,6 +68,25 @@ def test_unknown_salary_does_not_discard() -> None:
     )
 
     assert result.forced_classification is None
+    assert result.requires_review is False
+
+
+def test_published_salary_without_safe_pen_conversion_requires_review() -> None:
+    result = evaluate_business_rules(
+        MatchingRuleInput(
+            title="People Analytics Lead",
+            location="Remote LATAM",
+            work_mode=WorkMode.REMOTE,
+            monthly_salary_pen=None,
+            salary_published_unassessed=True,
+            is_international_remote=True,
+        )
+    )
+
+    assert result.forced_classification is None
+    assert result.requires_review is True
+    salary = next(item for item in result.results if item.code == "PUBLISHED_SALARY")
+    assert salary.severity == "WARNING"
 
 
 def test_local_published_salary_below_7000_forces_discard() -> None:
