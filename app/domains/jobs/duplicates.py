@@ -18,7 +18,6 @@ _STAGE_RANK = {
     ApplicationStage.APPLIED: 1,
     ApplicationStage.INTERVIEW: 2,
     ApplicationStage.OFFER: 3,
-    ApplicationStage.CLOSED: 4,
 }
 
 
@@ -33,6 +32,10 @@ def _similarity(left: str | None, right: str | None) -> float:
 
 
 def _company_similarity(left: Job, right: Job) -> float:
+    # A confidential placeholder identifies no real company. Treating two placeholders as the
+    # same employer would flood the review queue with unrelated confidential vacancies.
+    if left.company_is_confidential or right.company_is_confidential:
+        return 0.0
     if left.company_id is not None and left.company_id == right.company_id:
         return 1.0
     return _similarity(left.company_name_raw, right.company_name_raw)
@@ -138,6 +141,19 @@ def keep_separate(candidate: DuplicateCandidate, *, now: datetime | None = None)
     candidate.resolved_survivor_job_id = None
 
 
+def _merged_application_stage(
+    survivor_stage: ApplicationStage,
+    duplicate_stage: ApplicationStage,
+) -> ApplicationStage:
+    if survivor_stage == duplicate_stage:
+        return survivor_stage
+    if survivor_stage == ApplicationStage.CLOSED:
+        return duplicate_stage
+    if duplicate_stage == ApplicationStage.CLOSED:
+        return survivor_stage
+    return max((survivor_stage, duplicate_stage), key=_STAGE_RANK.__getitem__)
+
+
 def _merge_application(session: Session, survivor: Job, duplicate: Job) -> None:
     survivor_application = session.scalar(
         select(JobApplication).where(JobApplication.job_id == survivor.id)
@@ -151,8 +167,10 @@ def _merge_application(session: Session, survivor: Job, duplicate: Job) -> None:
         duplicate_application.job_id = survivor.id
         return
 
-    if _STAGE_RANK[duplicate_application.stage] > _STAGE_RANK[survivor_application.stage]:
-        survivor_application.stage = duplicate_application.stage
+    survivor_application.stage = _merged_application_stage(
+        survivor_application.stage,
+        duplicate_application.stage,
+    )
     applied_dates = [
         value
         for value in (survivor_application.applied_at, duplicate_application.applied_at)
