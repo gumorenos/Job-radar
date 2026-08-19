@@ -145,7 +145,10 @@ def resolve_duplicate_candidate(
         job_a = session.get(Job, candidate.job_a_id)
         job_b = session.get(Job, candidate.job_b_id)
         if job_a is None or job_b is None:
-            raise HTTPException(status_code=409, detail="One of the duplicate jobs no longer exists.")
+            raise HTTPException(
+                status_code=409,
+                detail="One of the duplicate jobs no longer exists.",
+            )
         survivor_id = payload.survivor_job_id
         if survivor_id is None:
             survivor_id = job_a.id if job_a.first_seen_at <= job_b.first_seen_at else job_b.id
