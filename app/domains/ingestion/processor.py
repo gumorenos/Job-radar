@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.enums import IngestionStatus, JobStatus, PostingStatus, WorkMode
 from app.db.models import Company, IngestionEvent, Job, JobPosting, PostingSighting
+from app.domains.jobs.duplicates import flag_possible_duplicates
 from app.domains.jobs.normalization import (
     clean_text,
     comparison_key,
@@ -102,7 +103,7 @@ def _job_for(
     employment_type: str | None,
     seniority: str | None,
     seen_at: datetime,
-) -> Job:
+) -> tuple[Job, bool]:
     settings = get_settings()
     title_key = comparison_key(canonical_title)
     existing: Job | None = None
@@ -145,7 +146,7 @@ def _job_for(
             existing.city = city
         if not existing.seniority and seniority:
             existing.seniority = seniority
-        return existing
+        return existing, False
 
     job = Job(
         canonical_title=canonical_title,
@@ -167,7 +168,7 @@ def _job_for(
     )
     session.add(job)
     session.flush()
-    return job
+    return job, True
 
 
 def _record_sighting(session: Session, event: IngestionEvent, posting: JobPosting) -> None:
@@ -362,7 +363,7 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
         return NormalizationResult(posting_id=posting.id, analysis_required=analysis_required)
 
     company, is_confidential = _company_for(session, company_raw)
-    job = _job_for(
+    job, job_created = _job_for(
         session,
         canonical_title=title,
         company=company,
@@ -377,6 +378,8 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
         seniority=seniority,
         seen_at=event.received_at,
     )
+    if job_created:
+        flag_possible_duplicates(session, job, seen_at=event.received_at)
 
     posting = JobPosting(
         job_id=job.id,
