@@ -42,6 +42,20 @@ def clean_database() -> Generator[None]:
     _truncate_database()
 
 
+def _update_payload(current: dict[str, object]) -> dict[str, object]:
+    return {
+        "name": current["name"],
+        "salary_min_pen": current["salary_min_pen"],
+        "remote_salary_multiplier": current["remote_salary_multiplier"],
+        "target_locations": current["target_locations"],
+        "target_roles": current["target_roles"],
+        "target_areas": current["target_areas"],
+        "adjacent_areas": current["adjacent_areas"],
+        "daily_review_time": current["daily_review_time"],
+        "timezone": current["timezone"],
+    }
+
+
 def test_get_profile_creates_single_default_profile() -> None:
     with TestClient(app) as client:
         first = client.get("/api/v1/profile")
@@ -101,19 +115,18 @@ def test_update_profile_normalizes_lists_and_preserves_rule_metadata() -> None:
 def test_update_profile_rejects_invalid_multiplier() -> None:
     with TestClient(app) as client:
         current = client.get("/api/v1/profile").json()
-        response = client.put(
-            "/api/v1/profile",
-            json={
-                "name": current["name"],
-                "salary_min_pen": current["salary_min_pen"],
-                "remote_salary_multiplier": 0.5,
-                "target_locations": current["target_locations"],
-                "target_roles": current["target_roles"],
-                "target_areas": current["target_areas"],
-                "adjacent_areas": current["adjacent_areas"],
-                "daily_review_time": current["daily_review_time"],
-                "timezone": current["timezone"],
-            },
-        )
+        payload = _update_payload(current)
+        payload["remote_salary_multiplier"] = 0.5
+        response = client.put("/api/v1/profile", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_update_profile_rejects_invalid_timezone() -> None:
+    with TestClient(app) as client:
+        current = client.get("/api/v1/profile").json()
+        payload = _update_payload(current)
+        payload["timezone"] = "Mars/Olympus"
+        response = client.put("/api/v1/profile", json=payload)
 
     assert response.status_code == 422
