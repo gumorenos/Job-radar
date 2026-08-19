@@ -144,7 +144,9 @@ def test_worker_creates_review_analysis_and_daily_review_notification() -> None:
         analysis = session.scalar(select(MatchAnalysis))
         profile = session.scalar(select(CandidateProfile))
         tasks = list(session.scalars(select(ProcessingTask).order_by(ProcessingTask.created_at)))
-        notifications = list(session.scalars(select(Notification).order_by(Notification.channel.asc())))
+        notifications = list(
+            session.scalars(select(Notification).order_by(Notification.channel.asc()))
+        )
 
         assert analysis is not None
         assert analysis.classification == Classification.REVIEW
@@ -253,7 +255,9 @@ def test_generic_non_hr_manager_is_not_promoted_by_incidental_hr_text() -> None:
                 "company": "Operations Corp",
                 "location": "Lima",
                 "work_mode": "hybrid",
-                "description": "Trabaja con RRHH en proyectos de People Analytics y gestión humana.",
+                "description": (
+                    "Trabaja con RRHH en proyectos de People Analytics y gestión humana."
+                ),
                 "url": "https://example.com/jobs/operations-manager",
             },
         )
