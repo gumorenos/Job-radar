@@ -136,9 +136,7 @@ def _role_match(term: str, title_key: str) -> bool:
     # Seniority-only titles are too generic by themselves. Requiring HR/People context in
     # the title prevents e.g. "Operations Manager" from being promoted because the body
     # happens to mention an HR initiative.
-    if term_key in _GENERIC_ROLE_KEYS and not _has_hr_title_context(title_key):
-        return False
-    return True
+    return term_key not in _GENERIC_ROLE_KEYS or _has_hr_title_context(title_key)
 
 
 def _phrase_matches(terms: tuple[str, ...], text_key: str) -> list[str]:
