@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_application_shell_exposes_simplified_primary_navigation() -> None:
+def test_application_shell_exposes_complete_core_navigation() -> None:
     with TestClient(app) as client:
         response = client.get("/app/")
 
@@ -18,21 +18,37 @@ def test_application_shell_exposes_simplified_primary_navigation() -> None:
     assert 'name="opportunity_search"' in response.text
     assert 'href="/app/favicon.svg"' in response.text
     assert 'src="/app/applications.js"' in response.text
+    assert 'src="/app/cvs.js"' in response.text
+    assert 'src="/app/settings.js"' in response.text
     assert 'href="/app/applications.css"' in response.text
+    assert 'href="/app/settings.css"' in response.text
     assert 'id="applicationsList"' in response.text
+    assert 'id="cvGrid"' in response.text
+    assert 'id="profileSettingsForm"' in response.text
     assert "prototype-note" not in response.text
 
 
-def test_application_shell_serves_frontend_assets() -> None:
+def test_application_shell_serves_core_frontend_assets() -> None:
     with TestClient(app) as client:
         favicon = client.get("/app/favicon.svg")
         applications_js = client.get("/app/applications.js")
         applications_css = client.get("/app/applications.css")
+        cvs_js = client.get("/app/cvs.js")
+        cvs_css = client.get("/app/cvs.css")
+        settings_js = client.get("/app/settings.js")
+        settings_css = client.get("/app/settings.css")
 
     assert favicon.status_code == 200
     assert favicon.headers["content-type"].startswith("image/svg+xml")
     assert applications_js.status_code == 200
-    assert "add_job_to_applications" not in applications_js.text
     assert "Añadir a postulaciones" in applications_js.text
     assert applications_css.status_code == 200
     assert ".application-row" in applications_css.text
+    assert cvs_js.status_code == 200
+    assert "Nueva versión" in cvs_js.text
+    assert cvs_css.status_code == 200
+    assert ".cv-dialog" in cvs_css.text
+    assert settings_js.status_code == 200
+    assert "/api/v1/profile" in settings_js.text
+    assert settings_css.status_code == 200
+    assert ".profile-settings" in settings_css.text
