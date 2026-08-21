@@ -139,12 +139,12 @@ def list_applications(
     )
 
 
-@router.get("/by-job/{job_id}", response_model=ApplicationItem)
-def get_application_by_job(job_id: UUID, session: SessionDep) -> ApplicationItem:
+@router.get("/by-job/{job_id}", response_model=ApplicationItem | None)
+def get_application_by_job(job_id: UUID, session: SessionDep) -> ApplicationItem | None:
+    if session.get(Job, job_id) is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
     row = _application_for_job(session, job_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Application not found.")
-    return _item(*row)
+    return _item(*row) if row is not None else None
 
 
 @router.post("/jobs/{job_id}", response_model=ApplicationCreateResponse)
