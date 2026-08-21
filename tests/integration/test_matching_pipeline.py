@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from decimal import Decimal
+from typing import cast
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -122,7 +123,7 @@ def test_worker_discards_excluded_seniority_and_radar_reflects_it() -> None:
         assert analysis.classification == Classification.DISCARD
         assert analysis.analyzer_version == "rules-v3"
         assert notification_count == 0
-        results = analysis.rule_results["results"]
+        results = cast(list[dict[str, object]], analysis.rule_results["results"])
         seniority = next(item for item in results if item["code"] == "SENIORITY_TITLE")
         assert seniority["severity"] == "HARD"
 
@@ -210,8 +211,10 @@ def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
         assert analysis.classification == Classification.HIGH_PRIORITY
         assert analysis.analyzer_version == "rules-v3"
         assert analysis.recommendation == "PRIORIZAR"
-        assert "Senior Analyst" in analysis.skill_analysis["role_matches"]
-        assert "People Analytics" in analysis.skill_analysis["core_area_matches"]
+        role_matches = cast(list[str], analysis.skill_analysis["role_matches"])
+        core_area_matches = cast(list[str], analysis.skill_analysis["core_area_matches"])
+        assert "Senior Analyst" in role_matches
+        assert "People Analytics" in core_area_matches
         assert analysis.strengths
         assert len(notifications) == 2
         assert {item.channel for item in notifications} == {
@@ -243,11 +246,8 @@ def test_remote_latam_salary_below_remote_floor_is_discarded() -> None:
         analysis = session.scalar(select(MatchAnalysis))
         assert analysis is not None
         assert analysis.classification == Classification.DISCARD
-        salary_rule = next(
-            item
-            for item in analysis.rule_results["results"]
-            if item["code"] == "PUBLISHED_SALARY"
-        )
+        results = cast(list[dict[str, object]], analysis.rule_results["results"])
+        salary_rule = next(item for item in results if item["code"] == "PUBLISHED_SALARY")
         assert salary_rule["severity"] == "HARD"
 
 
@@ -272,7 +272,8 @@ def test_generic_non_hr_manager_is_not_promoted_by_incidental_hr_text() -> None:
         analysis = session.scalar(select(MatchAnalysis))
         assert analysis is not None
         assert analysis.classification == Classification.REVIEW
-        assert analysis.skill_analysis["role_matches"] == []
+        role_matches = cast(list[str], analysis.skill_analysis["role_matches"])
+        assert role_matches == []
 
 
 def test_matching_recommends_specialized_approved_cv_before_base() -> None:
@@ -332,4 +333,5 @@ def test_matching_recommends_specialized_approved_cv_before_base() -> None:
         analysis = session.scalar(select(MatchAnalysis))
         assert analysis is not None
         assert analysis.cv_version_id == specialized_id
-        assert analysis.skill_analysis["recommended_cv"]["name"] == "CV People Analytics"
+        recommended_cv = cast(dict[str, object], analysis.skill_analysis["recommended_cv"])
+        assert recommended_cv["name"] == "CV People Analytics"
