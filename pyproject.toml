@@ -32,7 +32,9 @@ addopts = "-ra"
 [tool.ruff]
 target-version = "py314"
 line-length = 100
-extend-exclude = ["migrations/versions"]
+# `scripts/` is the inherited MVP/operator console. The maintained v1 product lives in
+# app/ + tests/ and migrations are reviewed as generated schema history.
+extend-exclude = ["migrations/versions", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
