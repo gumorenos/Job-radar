@@ -33,6 +33,7 @@ def test_application_shell_exposes_complete_core_navigation() -> None:
 def test_application_shell_serves_core_frontend_assets() -> None:
     with TestClient(app) as client:
         favicon = client.get("/app/favicon.svg")
+        styles = client.get("/app/styles.css")
         duplicates_js = client.get("/app/duplicates.js")
         duplicates_css = client.get("/app/duplicates.css")
         applications_js = client.get("/app/applications.js")
@@ -44,6 +45,9 @@ def test_application_shell_serves_core_frontend_assets() -> None:
 
     assert favicon.status_code == 200
     assert favicon.headers["content-type"].startswith("image/svg+xml")
+    assert styles.status_code == 200
+    assert ".summary-strip," in styles.text
+    assert "z-index: 26;" in styles.text
     assert duplicates_js.status_code == 200
     assert "Mantener separadas" in duplicates_js.text
     assert duplicates_css.status_code == 200
