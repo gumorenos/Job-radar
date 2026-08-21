@@ -19,7 +19,7 @@ def _posting(**overrides: object) -> JobPosting:
         "posting_status": PostingStatus.ACTIVE,
     }
     values.update(overrides)
-    return JobPosting(**values)  # type: ignore[arg-type]
+    return JobPosting(**values)
 
 
 def _job(**overrides: object) -> Job:
@@ -33,7 +33,7 @@ def _job(**overrides: object) -> Job:
         "last_seen_at": now,
     }
     values.update(overrides)
-    return Job(**values)  # type: ignore[arg-type]
+    return Job(**values)
 
 
 def test_salary_text_parses_pen_monthly_amount() -> None:
