@@ -55,6 +55,15 @@ jobs:
       - name: Mypy
         run: uv run --locked mypy app tests
 
+      - name: Deployment shell syntax
+        run: bash -n ops/deploy.sh ops/backup.sh ops/smoke.sh
+
+      - name: Production Compose config
+        run: docker compose --env-file .env.production.example config >/dev/null
+
+      - name: Docker image build
+        run: docker build -t job-radar:ci .
+
       - name: Unit tests
         run: uv run --locked pytest -q tests/unit
 
