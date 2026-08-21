@@ -17,15 +17,17 @@ def test_minimal_ingestion_accepts_title_only() -> None:
 
 
 def test_structured_salary_and_location_facts_are_supported() -> None:
-    job = IncomingJob(
-        title="People Analytics Lead",
-        country="Peru",
-        city="Lima",
-        seniority="Lead",
-        salary_min="8000",
-        salary_max="9500",
-        currency="PEN",
-        salary_period="month",
+    job = IncomingJob.model_validate(
+        {
+            "title": "People Analytics Lead",
+            "country": "Peru",
+            "city": "Lima",
+            "seniority": "Lead",
+            "salary_min": "8000",
+            "salary_max": "9500",
+            "currency": "PEN",
+            "salary_period": "month",
+        }
     )
 
     assert job.country == "Peru"
