@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from decimal import Decimal
+from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -104,9 +105,6 @@ def test_structured_remote_salary_is_persisted_and_used_by_matching() -> None:
         assert posting.currency == "PEN"
         assert posting.salary_period == "month"
         assert analysis.classification == Classification.DISCARD
-        salary_rule = next(
-            item
-            for item in analysis.rule_results["results"]
-            if item["code"] == "PUBLISHED_SALARY"
-        )
+        results = cast(list[dict[str, object]], analysis.rule_results["results"])
+        salary_rule = next(item for item in results if item["code"] == "PUBLISHED_SALARY")
         assert salary_rule["severity"] == "HARD"
