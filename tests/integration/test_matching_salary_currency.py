@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -90,10 +91,7 @@ def test_strong_remote_fit_with_unconverted_usd_salary_stays_review() -> None:
         assert analysis is not None
         assert analysis.classification == Classification.REVIEW
         assert analysis.rule_results["requires_review"] is True
-        salary_rule = next(
-            item
-            for item in analysis.rule_results["results"]
-            if item["code"] == "PUBLISHED_SALARY"
-        )
+        results = cast(list[dict[str, object]], analysis.rule_results["results"])
+        salary_rule = next(item for item in results if item["code"] == "PUBLISHED_SALARY")
         assert salary_rule["severity"] == "WARNING"
-        assert "no está normalizado" in salary_rule["message"]
+        assert "no está normalizado" in str(salary_rule["message"])
