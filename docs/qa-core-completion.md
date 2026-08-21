@@ -24,13 +24,18 @@ Este es el único bloque de QA que debe ejecutarse para validar el PR consolidad
 
 1. Confirmar repo, branch y HEAD exacto; working tree limpio.
 2. `uv sync --locked`.
-3. Ruff, mypy y unit tests.
+3. Ejecutar exactamente:
+   - `uv run --locked ruff check .`
+   - `uv run --locked mypy app tests`
+   - `uv run --locked pytest -q tests/unit`
 4. Build Docker ARM64 y confirmar arquitectura.
 5. Levantar PostgreSQL 18 aislado.
 6. Ejecutar `alembic upgrade head` y confirmar revisiones 0001 → 0002 → 0003.
 7. Levantar API + worker; `/health`, `/ready`, `/app/` = 200.
-8. Exportar `.env` QA y ejecutar todos `tests/integration`.
+8. Exportar `.env` QA y ejecutar `uv run --locked pytest -q tests/integration`.
 9. Confirmar API/PostgreSQL expuestos solo en loopback.
+
+Nota: `scripts/` es el operador/MVP heredado y está excluido explícitamente del lint mantenido por `pyproject.toml`; no forma parte del runtime del núcleo v1.
 
 ## Flujos funcionales obligatorios
 
@@ -90,6 +95,7 @@ Prueba controlada de delivery sin usar producción:
 - `JOB_RADAR_APP_ENV=production` + API key default debe impedir startup.
 - producción con password `job_radar_dev` debe impedir startup.
 - UI desktop 1366×768 y mobile 390×844: Radar, Duplicados, Postulaciones, CVs, Configuración sin overflow/solapes bloqueantes.
+- Regresión obligatoria desktop: abrir un detalle de Radar y, sin cerrarlo manualmente, pulsar el filtro/tarjeta `Posibles duplicados`; el control debe recibir el click sin timeout/intercepción y la vista debe cambiar correctamente.
 - consola del navegador limpia y assets 200.
 - logs sin tokens, CV completo ni raw payloads sensibles.
 
