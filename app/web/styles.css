@@ -232,6 +232,11 @@ button { cursor: pointer; }
 
 @media (max-width: 1100px) {
   .radar-layout { grid-template-columns: minmax(0, 1fr); }
+  .summary-strip,
+  .list-toolbar {
+    position: relative;
+    z-index: 26;
+  }
   .detail-panel {
     display: none;
     position: fixed;
