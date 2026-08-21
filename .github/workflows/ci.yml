@@ -50,10 +50,10 @@ jobs:
         run: uv sync --locked --dev
 
       - name: Ruff
-        run: uv run --locked ruff check app tests migrations
+        run: uv run --locked ruff check .
 
       - name: Mypy
-        run: uv run --locked mypy app
+        run: uv run --locked mypy app tests
 
       - name: Unit tests
         run: uv run --locked pytest -q tests/unit

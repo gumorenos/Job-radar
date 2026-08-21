@@ -34,11 +34,22 @@ def test_onsite_outside_lima_forces_discard() -> None:
     assert result.forced_classification == Classification.DISCARD
 
 
-def test_onsite_lima_is_allowed() -> None:
+@pytest.mark.parametrize(
+    "location",
+    [
+        "San Isidro, Lima",
+        "Ate, Lima",
+        "Los Olivos, Lima",
+        "San Juan de Lurigancho",
+        "Villa El Salvador",
+        "Ventanilla, Callao",
+    ],
+)
+def test_onsite_lima_metropolitana_is_allowed(location: str) -> None:
     result = evaluate_business_rules(
         MatchingRuleInput(
             title="HR Business Partner",
-            location="San Isidro, Lima",
+            location=location,
             work_mode=WorkMode.ONSITE,
         )
     )
@@ -57,6 +68,25 @@ def test_unknown_salary_does_not_discard() -> None:
     )
 
     assert result.forced_classification is None
+    assert result.requires_review is False
+
+
+def test_published_salary_without_safe_pen_conversion_requires_review() -> None:
+    result = evaluate_business_rules(
+        MatchingRuleInput(
+            title="People Analytics Lead",
+            location="Remote LATAM",
+            work_mode=WorkMode.REMOTE,
+            monthly_salary_pen=None,
+            salary_published_unassessed=True,
+            is_international_remote=True,
+        )
+    )
+
+    assert result.forced_classification is None
+    assert result.requires_review is True
+    salary = next(item for item in result.results if item.code == "PUBLISHED_SALARY")
+    assert salary.severity == "WARNING"
 
 
 def test_local_published_salary_below_7000_forces_discard() -> None:

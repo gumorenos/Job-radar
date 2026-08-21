@@ -72,6 +72,20 @@ class FeedbackReason(StrEnum):
     OTHER = "OTHER"
 
 
+class ApplicationStage(StrEnum):
+    TO_APPLY = "TO_APPLY"
+    APPLIED = "APPLIED"
+    INTERVIEW = "INTERVIEW"
+    OFFER = "OFFER"
+    CLOSED = "CLOSED"
+
+
+class DuplicateCandidateStatus(StrEnum):
+    PENDING = "PENDING"
+    MERGED = "MERGED"
+    KEPT_SEPARATE = "KEPT_SEPARATE"
+
+
 class CvApprovalStatus(StrEnum):
     DRAFT = "DRAFT"
     APPROVED = "APPROVED"

@@ -2,14 +2,30 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from decimal import Decimal
+from typing import cast
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from app.core.config import get_settings
-from app.db.enums import Classification, TaskStatus, TaskType
-from app.db.models import CandidateProfile, MatchAnalysis, ProcessingTask
+from app.db.enums import (
+    Classification,
+    CvApprovalStatus,
+    NotificationChannel,
+    NotificationStatus,
+    NotificationType,
+    TaskStatus,
+    TaskType,
+)
+from app.db.models import (
+    CandidateProfile,
+    CvVersion,
+    MatchAnalysis,
+    Notification,
+    ProcessingTask,
+)
 from app.db.session import get_engine, get_session_factory
 from app.main import app
 from app.worker.tasks import claim_next_task, execute_task
@@ -26,6 +42,8 @@ def _truncate_database() -> None:
             text(
                 """
                 TRUNCATE TABLE
+                    duplicate_candidates,
+                    job_applications,
                     classification_feedback,
                     notifications,
                     match_analyses,
@@ -100,15 +118,17 @@ def test_worker_discards_excluded_seniority_and_radar_reflects_it() -> None:
 
     with get_session_factory()() as session:
         analysis = session.scalar(select(MatchAnalysis))
+        notification_count = session.scalar(select(func.count()).select_from(Notification))
         assert analysis is not None
         assert analysis.classification == Classification.DISCARD
-        assert analysis.analyzer_version == "rules-v1"
-        results = analysis.rule_results["results"]
+        assert analysis.analyzer_version == "rules-v3"
+        assert notification_count == 0
+        results = cast(list[dict[str, object]], analysis.rule_results["results"])
         seniority = next(item for item in results if item["code"] == "SENIORITY_TITLE")
         assert seniority["severity"] == "HARD"
 
 
-def test_worker_creates_review_analysis_and_default_profile() -> None:
+def test_worker_creates_review_analysis_and_daily_review_notification() -> None:
     with TestClient(app) as client:
         _ingest(
             client,
@@ -126,18 +146,85 @@ def test_worker_creates_review_analysis_and_default_profile() -> None:
         analysis = session.scalar(select(MatchAnalysis))
         profile = session.scalar(select(CandidateProfile))
         tasks = list(session.scalars(select(ProcessingTask).order_by(ProcessingTask.created_at)))
+        notifications = list(
+            session.scalars(select(Notification).order_by(Notification.channel.asc()))
+        )
 
         assert analysis is not None
         assert analysis.classification == Classification.REVIEW
+        assert analysis.analyzer_version == "rules-v3"
         assert analysis.confidence is not None
         assert profile is not None
         assert profile.salary_min_pen == Decimal("7000")
         assert profile.remote_salary_multiplier == Decimal("1.10")
+        assert "Strategic HRBP" in profile.target_roles
+        assert "Gestión de Personas" in profile.target_areas
         assert [task.task_type for task in tasks] == [
             TaskType.NORMALIZE_INGESTION,
             TaskType.ANALYZE_MATCH,
         ]
         assert all(task.status == TaskStatus.COMPLETED for task in tasks)
+        assert len(notifications) == 2
+
+        by_channel = {item.channel: item for item in notifications}
+        dashboard = by_channel[NotificationChannel.DASHBOARD]
+        telegram = by_channel[NotificationChannel.TELEGRAM]
+        assert dashboard.notification_type == NotificationType.IMMEDIATE
+        assert dashboard.status == NotificationStatus.SENT
+        assert dashboard.sent_at is not None
+        assert telegram.notification_type == NotificationType.DAILY_REVIEW
+        assert telegram.status == NotificationStatus.PENDING
+        assert telegram.scheduled_for is not None
+        assert telegram.scheduled_for.astimezone(ZoneInfo("America/Lima")).hour == 21
+
+
+def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
+    with TestClient(app) as client:
+        _ingest(
+            client,
+            "matching-high-priority",
+            {
+                "title": "Senior People Analytics Analyst",
+                "company": "Analytics Corp",
+                "location": "Lima",
+                "work_mode": "hybrid",
+                "salary_text": "S/ 9,000",
+                "description": (
+                    "Lidera People Analytics y HR Analytics para decisiones estratégicas de "
+                    "gestión humana."
+                ),
+                "url": "https://example.com/jobs/high-people-analytics",
+            },
+        )
+        summary = client.get("/api/v1/radar/summary")
+        high = client.get("/api/v1/radar/jobs?view=high")
+
+    assert summary.status_code == 200
+    assert summary.json()["high"] == 1
+    assert high.status_code == 200
+    assert high.json()["total"] == 1
+
+    with get_session_factory()() as session:
+        analysis = session.scalar(select(MatchAnalysis))
+        notifications = list(session.scalars(select(Notification)))
+        assert analysis is not None
+        assert analysis.classification == Classification.HIGH_PRIORITY
+        assert analysis.analyzer_version == "rules-v3"
+        assert analysis.recommendation == "PRIORIZAR"
+        role_matches = cast(list[str], analysis.skill_analysis["role_matches"])
+        core_area_matches = cast(list[str], analysis.skill_analysis["core_area_matches"])
+        assert "Senior Analyst" in role_matches
+        assert "People Analytics" in core_area_matches
+        assert analysis.strengths
+        assert len(notifications) == 2
+        assert {item.channel for item in notifications} == {
+            NotificationChannel.DASHBOARD,
+            NotificationChannel.TELEGRAM,
+        }
+        assert all(item.notification_type == NotificationType.IMMEDIATE for item in notifications)
+        by_channel = {item.channel: item for item in notifications}
+        assert by_channel[NotificationChannel.DASHBOARD].status == NotificationStatus.SENT
+        assert by_channel[NotificationChannel.TELEGRAM].status == NotificationStatus.PENDING
 
 
 def test_remote_latam_salary_below_remote_floor_is_discarded() -> None:
@@ -159,9 +246,92 @@ def test_remote_latam_salary_below_remote_floor_is_discarded() -> None:
         analysis = session.scalar(select(MatchAnalysis))
         assert analysis is not None
         assert analysis.classification == Classification.DISCARD
-        salary_rule = next(
-            item
-            for item in analysis.rule_results["results"]
-            if item["code"] == "PUBLISHED_SALARY"
-        )
+        results = cast(list[dict[str, object]], analysis.rule_results["results"])
+        salary_rule = next(item for item in results if item["code"] == "PUBLISHED_SALARY")
         assert salary_rule["severity"] == "HARD"
+
+
+def test_generic_non_hr_manager_is_not_promoted_by_incidental_hr_text() -> None:
+    with TestClient(app) as client:
+        _ingest(
+            client,
+            "matching-generic-manager",
+            {
+                "title": "Operations Manager",
+                "company": "Operations Corp",
+                "location": "Lima",
+                "work_mode": "hybrid",
+                "description": (
+                    "Trabaja con RRHH en proyectos de People Analytics y gestión humana."
+                ),
+                "url": "https://example.com/jobs/operations-manager",
+            },
+        )
+
+    with get_session_factory()() as session:
+        analysis = session.scalar(select(MatchAnalysis))
+        assert analysis is not None
+        assert analysis.classification == Classification.REVIEW
+        role_matches = cast(list[str], analysis.skill_analysis["role_matches"])
+        assert role_matches == []
+
+
+def test_matching_recommends_specialized_approved_cv_before_base() -> None:
+    with get_session_factory()() as session:
+        profile = CandidateProfile(
+            name="Perfil CV",
+            salary_min_pen=Decimal("7000"),
+            remote_salary_multiplier=Decimal("1.10"),
+            target_locations=["Lima Metropolitana"],
+            target_roles=["Senior Analyst"],
+            target_areas=["People Analytics"],
+            adjacent_areas=[],
+            rules={},
+        )
+        session.add(profile)
+        session.flush()
+        base = CvVersion(
+            candidate_profile_id=profile.id,
+            name="CV Base",
+            slug="cv-base",
+            version=1,
+            is_base=True,
+            is_active=True,
+            approval_status=CvApprovalStatus.APPROVED,
+            generated_by_ai=False,
+        )
+        specialized = CvVersion(
+            candidate_profile_id=profile.id,
+            name="CV People Analytics",
+            slug="cv-people-analytics",
+            version=1,
+            is_base=False,
+            is_active=False,
+            approval_status=CvApprovalStatus.APPROVED,
+            generated_by_ai=False,
+            target_area="People Analytics",
+        )
+        session.add_all([base, specialized])
+        session.commit()
+        specialized_id = specialized.id
+
+    with TestClient(app) as client:
+        _ingest(
+            client,
+            "matching-cv-recommendation",
+            {
+                "title": "Senior People Analytics Analyst",
+                "company": "Analytics Corp",
+                "location": "Lima",
+                "work_mode": "hybrid",
+                "description": "People Analytics y HR Analytics.",
+                "url": "https://example.com/jobs/cv-recommendation",
+            },
+        )
+
+    with get_session_factory()() as session:
+        analysis = session.scalar(select(MatchAnalysis))
+        assert analysis is not None
+        assert analysis.cv_version_id == specialized_id
+        recommended_cv = cast(dict[str, object], analysis.skill_analysis["recommended_cv"])
+        assert recommended_cv["name"] == "CV People Analytics"

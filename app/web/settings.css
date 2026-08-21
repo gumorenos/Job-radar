@@ -1,0 +1,89 @@
+.profile-settings,
+.settings-status {
+  width: min(100%, 980px);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.settings-status {
+  min-height: 22px;
+  margin-top: -8px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-status.error { color: #a12828; }
+.profile-settings { display: grid; gap: 12px; padding-bottom: 72px; }
+
+.settings-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+}
+
+.settings-card-heading { margin-bottom: 16px; }
+.settings-card-heading h3 { margin: 0 0 5px; font-size: 16px; }
+.settings-card-heading p,
+.settings-derived,
+.rules-summary-card li {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.settings-card-heading p, .settings-derived { margin: 0; }
+
+.settings-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.settings-columns + .settings-columns { margin-top: 12px; }
+
+.settings-field { display: grid; gap: 6px; }
+.settings-field > span { color: var(--muted); font-size: 12px; font-weight: 680; }
+.settings-field input,
+.settings-field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 9px 10px;
+}
+.settings-field input { min-height: 38px; }
+.settings-field textarea { resize: vertical; min-height: 130px; line-height: 1.4; }
+.settings-field input:focus,
+.settings-field textarea:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: #aeb9e8;
+}
+
+.settings-derived { margin-top: 12px; }
+.rules-summary-card ul { margin: 0; padding-left: 20px; }
+.rules-summary-card li + li { margin-top: 5px; }
+
+.settings-save-bar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+}
+.settings-save-bar span { color: var(--muted); font-size: 12px; }
+
+@media (max-width: 760px) {
+  .settings-columns { grid-template-columns: 1fr; }
+  .settings-card { padding: 15px; }
+  .settings-save-bar { bottom: 8px; align-items: stretch; flex-direction: column; }
+  .settings-save-bar .primary { width: 100%; }
+}

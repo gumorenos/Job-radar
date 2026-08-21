@@ -1,5 +1,7 @@
 """Persistence model registry used by SQLAlchemy and Alembic."""
 
+from app.db.models.applications import JobApplication
+from app.db.models.duplicates import DuplicateCandidate
 from app.db.models.ingestion import IngestionEvent, ProcessingTask
 from app.db.models.jobs import Company, Job, JobPosting, PostingSighting
 from app.db.models.matching import ClassificationFeedback, MatchAnalysis
@@ -11,8 +13,10 @@ __all__ = [
     "ClassificationFeedback",
     "Company",
     "CvVersion",
+    "DuplicateCandidate",
     "IngestionEvent",
     "Job",
+    "JobApplication",
     "JobPosting",
     "MatchAnalysis",
     "Notification",

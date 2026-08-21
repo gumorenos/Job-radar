@@ -64,20 +64,21 @@ def _count(session: Session, model: type[object]) -> int:
 
 
 def test_ingestion_is_idempotent_and_deduplicates_by_normalized_url() -> None:
-    payload = {
+    job_payload: dict[str, object] = {
+        "title": "HR Business Partner",
+        "company": "QA Example Corp",
+        "location": "Lima, Perú",
+        "work_mode": "Híbrido",
+        "salary_text": "S/ 8,500",
+        "description": "Strategic HRBP role",
+        "url": "https://example.com/jobs/123?utm_source=qa&trackingId=abc",
+        "published_at": "2026-08-14",
+    }
+    payload: dict[str, object] = {
         "ingestion_source": "openclaw",
         "posting_source": "linkedin",
         "external_id": "qa-linkedin-001",
-        "job": {
-            "title": "HR Business Partner",
-            "company": "QA Example Corp",
-            "location": "Lima, Perú",
-            "work_mode": "Híbrido",
-            "salary_text": "S/ 8,500",
-            "description": "Strategic HRBP role",
-            "url": "https://example.com/jobs/123?utm_source=qa&trackingId=abc",
-            "published_at": "2026-08-14",
-        },
+        "job": job_payload,
         "metadata": {"qa_test": True},
         "unexpected_future_field": {"must_be_preserved": True},
     }
@@ -133,7 +134,10 @@ def test_ingestion_is_idempotent_and_deduplicates_by_normalized_url() -> None:
             assert _count(session, JobPosting) == 1
             assert _count(session, PostingSighting) == 1
 
-        changed_payload = {**payload, "job": {**payload["job"], "title": "Modified title"}}
+        changed_payload = {
+            **payload,
+            "job": {**job_payload, "title": "Modified title"},
+        }
         conflict = client.post(
             "/api/v1/ingestions/jobs",
             headers={**_auth_headers(), "Idempotency-Key": "qa-job-001"},
@@ -145,7 +149,7 @@ def test_ingestion_is_idempotent_and_deduplicates_by_normalized_url() -> None:
             **payload,
             "external_id": "qa-linkedin-002",
             "job": {
-                **payload["job"],
+                **job_payload,
                 "url": "https://example.com/jobs/123?utm_source=second&utm_campaign=test",
             },
         }

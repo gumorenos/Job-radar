@@ -90,17 +90,29 @@ def monthly_salary_pen(posting: JobPosting | None) -> Decimal | None:
     return amount
 
 
+def published_salary_unassessed(posting: JobPosting | None) -> bool:
+    """Return whether a numeric salary exists but is not normalized to monthly PEN yet."""
+
+    if posting is None or monthly_salary_pen(posting) is not None:
+        return False
+    if posting.salary_min is not None or posting.salary_max is not None:
+        return True
+    return bool(posting.salary_text and re.search(r"\d", posting.salary_text))
+
+
 def is_international_remote(job: Job) -> bool:
     if job.work_mode != WorkMode.REMOTE:
         return False
 
+    # Explicit global/LATAM wording wins over a Peru country value because many platforms set
+    # candidate/work-location country to Peru even when the employer is offering a regional role.
+    location_key = comparison_key(job.location_text)
+    if location_key and any(term in location_key for term in _INTERNATIONAL_REMOTE_TERMS):
+        return True
+    if location_key and any(term in location_key for term in _LOCAL_TERMS):
+        return False
+
     country_key = comparison_key(job.country)
     if country_key:
-        return country_key not in {"peru"}
-
-    location_key = comparison_key(job.location_text)
-    if not location_key:
-        return False
-    if any(term in location_key for term in _LOCAL_TERMS):
-        return False
-    return any(term in location_key for term in _INTERNATIONAL_REMOTE_TERMS)
+        return country_key != "peru"
+    return False

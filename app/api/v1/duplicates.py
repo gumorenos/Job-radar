@@ -1,0 +1,162 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Annotated, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.db.enums import DuplicateCandidateStatus
+from app.db.models import Company, DuplicateCandidate, Job, JobPosting
+from app.db.session import get_session
+from app.domains.jobs.duplicates import keep_separate, merge_duplicate_candidate
+
+router = APIRouter(prefix="/api/v1/radar/duplicates", tags=["duplicates"])
+SessionDep = Annotated[Session, Depends(get_session)]
+DuplicateDecision = Literal["MERGE", "KEEP_SEPARATE"]
+
+
+class DuplicateJobBrief(BaseModel):
+    id: UUID
+    title: str
+    company: str | None
+    location: str | None
+    work_mode: str
+    description: str | None
+    salary_text: str | None
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+class DuplicateCandidateItem(BaseModel):
+    id: UUID
+    confidence: Decimal
+    reasons: dict[str, object]
+    status: DuplicateCandidateStatus
+    job_a: DuplicateJobBrief
+    job_b: DuplicateJobBrief
+    resolved_survivor_job_id: UUID | None
+    resolved_at: datetime | None
+    created_at: datetime
+
+
+class DuplicateCandidateList(BaseModel):
+    items: list[DuplicateCandidateItem]
+    total: int
+
+
+class DuplicateResolutionRequest(BaseModel):
+    decision: DuplicateDecision
+    survivor_job_id: UUID | None = None
+
+
+def _company_name(session: Session, job: Job) -> str | None:
+    if job.company_id is not None:
+        company = session.get(Company, job.company_id)
+        if company is not None:
+            return company.name
+    return job.company_name_raw
+
+
+def _latest_posting(session: Session, job_id: UUID) -> JobPosting | None:
+    return session.scalar(
+        select(JobPosting)
+        .where(JobPosting.job_id == job_id)
+        .order_by(JobPosting.last_seen_at.desc())
+        .limit(1)
+    )
+
+
+def _brief(session: Session, job: Job) -> DuplicateJobBrief:
+    posting = _latest_posting(session, job.id)
+    return DuplicateJobBrief(
+        id=job.id,
+        title=job.canonical_title or (posting.title_raw if posting else None) or "Sin título",
+        company=_company_name(session, job),
+        location=job.location_text or (posting.location_raw if posting else None),
+        work_mode=job.work_mode.value,
+        description=job.description or (posting.description_raw if posting else None),
+        salary_text=posting.salary_text if posting is not None else None,
+        first_seen_at=job.first_seen_at,
+        last_seen_at=job.last_seen_at,
+    )
+
+
+def _item(session: Session, candidate: DuplicateCandidate) -> DuplicateCandidateItem:
+    job_a = session.get(Job, candidate.job_a_id)
+    job_b = session.get(Job, candidate.job_b_id)
+    if job_a is None or job_b is None:
+        raise LookupError("A duplicate candidate references a missing job.")
+    return DuplicateCandidateItem(
+        id=candidate.id,
+        confidence=candidate.confidence,
+        reasons=candidate.reasons,
+        status=candidate.status,
+        job_a=_brief(session, job_a),
+        job_b=_brief(session, job_b),
+        resolved_survivor_job_id=candidate.resolved_survivor_job_id,
+        resolved_at=candidate.resolved_at,
+        created_at=candidate.created_at,
+    )
+
+
+@router.get("", response_model=DuplicateCandidateList)
+def list_duplicate_candidates(
+    session: SessionDep,
+    status: DuplicateCandidateStatus = DuplicateCandidateStatus.PENDING,
+    limit: int = Query(default=100, ge=1, le=200),
+) -> DuplicateCandidateList:
+    total = session.scalar(
+        select(func.count(DuplicateCandidate.id)).where(DuplicateCandidate.status == status)
+    ) or 0
+    candidates = list(
+        session.scalars(
+            select(DuplicateCandidate)
+            .where(DuplicateCandidate.status == status)
+            .order_by(DuplicateCandidate.confidence.desc(), DuplicateCandidate.created_at.desc())
+            .limit(limit)
+        )
+    )
+    return DuplicateCandidateList(
+        items=[_item(session, candidate) for candidate in candidates],
+        total=int(total),
+    )
+
+
+@router.post("/{candidate_id}/resolve", response_model=DuplicateCandidateItem)
+def resolve_duplicate_candidate(
+    candidate_id: UUID,
+    payload: DuplicateResolutionRequest,
+    session: SessionDep,
+) -> DuplicateCandidateItem:
+    candidate = session.get(DuplicateCandidate, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Duplicate candidate not found.")
+    if candidate.status != DuplicateCandidateStatus.PENDING:
+        raise HTTPException(status_code=409, detail="Duplicate candidate is already resolved.")
+
+    if payload.decision == "KEEP_SEPARATE":
+        keep_separate(candidate)
+    else:
+        job_a = session.get(Job, candidate.job_a_id)
+        job_b = session.get(Job, candidate.job_b_id)
+        if job_a is None or job_b is None:
+            raise HTTPException(
+                status_code=409,
+                detail="One of the duplicate jobs no longer exists.",
+            )
+        survivor_id = payload.survivor_job_id
+        if survivor_id is None:
+            survivor_id = job_a.id if job_a.first_seen_at <= job_b.first_seen_at else job_b.id
+        try:
+            merge_duplicate_candidate(session, candidate, survivor_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    session.commit()
+    session.refresh(candidate)
+    return _item(session, candidate)

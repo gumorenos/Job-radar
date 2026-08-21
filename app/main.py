@@ -18,6 +18,7 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    settings.validate_runtime()
     configure_logging(settings.log_level)
     settings.storage_path.mkdir(parents=True, exist_ok=True)
     yield
