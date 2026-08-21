@@ -10,6 +10,7 @@ htmlcov/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 config/job-radar-profile.json
 
