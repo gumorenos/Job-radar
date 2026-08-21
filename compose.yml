@@ -3,7 +3,7 @@ name: job-radar
 x-app: &app
   build:
     context: .
-  image: job-radar:local
+  image: ${JOB_RADAR_IMAGE:-job-radar:local}
   restart: unless-stopped
   environment:
     JOB_RADAR_APP_ENV: ${JOB_RADAR_APP_ENV:-development}

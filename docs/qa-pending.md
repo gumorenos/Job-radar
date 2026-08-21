@@ -1,213 +1,67 @@
 # QA pendiente — Job Radar
 
-Este archivo registra validaciones que requieren el VPS Oracle/ARM64, navegador real u operaciones que no debe ejecutar el desarrollo normal. El código se sigue validando con GitHub Actions; estas pruebas quedan pendientes hasta que OpenClaw vuelva a estar disponible.
+Este archivo mantiene solo gates operativos pendientes. OpenClaw actúa como QA/operador: no desarrolla ni corrige código. Cada mensaje enviado por Discord debe tener menos de 2.000 caracteres.
 
-## Reglas de ejecución
+## Historial cerrado
 
-- OpenClaw actúa solo como QA/operador: no desarrolla ni corrige código.
-- No hacer merge, despliegue de producción ni cambios a OpenClaw, Cloudflare, Notion u otros servicios durante QA.
-- Usar proyecto Docker aislado `job-radar-qa`.
-- Preferir API `127.0.0.1:18000` y PostgreSQL `127.0.0.1:15432`.
-- Crear `.env` de QA con secretos aleatorios; nunca versionarlo.
-- Exportar `.env` antes de ejecutar integration tests.
-- Limpiar contenedores, volúmenes y storage QA al finalizar.
-- Cada prompt enviado por Discord debe tener menos de 2.000 caracteres.
+Los antiguos QA-001 a QA-006 quedaron absorbidos por el QA consolidado del PR #14 (`docs/qa-core-completion.md`). El núcleo v1 pasó finalmente en Oracle ARM64 y navegador real sobre HEAD `1a84ac19a012561b83c98ef9a43314cd2170fb2a` y fue mergeado a `main` mediante commit `585d8739f8f49b52b3d928fcdc0f7da5a1cfe6f0`.
+
+No repetir esos bloques salvo regresión específica.
 
 ---
 
-## QA-001 — Applications CRM v1
+## QA-007 — Production rollout + OpenClaw canary
 
 **Estado:** PENDIENTE  
-**PR:** #8 — `CRM: add applications lifecycle`  
-**Branch:** `feat/applications-crm-v1`  
-**HEAD esperado:** `125dc42d25f006ff58b06deed669f3f89e273ac8`  
-**CI GitHub:** PASS  
-**Bloquea merge:** Sí
+**Ámbito:** despliegue real Oracle ARM64, sin migración histórica todavía  
+**Runbook:** `docs/deployment.md`  
+**Contrato OpenClaw:** `docs/openclaw-ingestion.md`
 
-### Validación estática y runtime
+### Gate A — preflight VPS
 
-1. `uv sync --locked`.
-2. Ruff, mypy y unit tests.
-3. Docker Compose config/build y confirmar imagen ARM64.
-4. Levantar PostgreSQL aislado, `alembic upgrade head`, API y worker.
-5. `/health`, `/ready` y `/app/` deben responder 200.
-6. Con `.env` exportado, ejecutar `tests/integration`.
-7. Confirmar que existe la tabla `job_applications`.
+Antes de modificar producción, OpenClaw debe reportar:
 
-### Flujo funcional
+- arquitectura, RAM/disco y Docker/Compose;
+- puertos/listeners y servicios/contenedores existentes;
+- estado del `cloudflared` systemd principal;
+- disponibilidad de `127.0.0.1:8000` y `127.0.0.1:5432`;
+- salud de servicios ajenos a Job Radar;
+- posibilidad de obtener la imagen GHCR ARM64 del commit objetivo.
 
-Ingestar `Strategic HRBP QA CRM`, empresa `QA CRM Corp`, Lima, híbrida, sin salario. Esperar `NORMALIZE_INGESTION` y `ANALYZE_MATCH` en `COMPLETED`; la clasificación debe quedar `REVIEW`.
+No tocar el túnel/contenedor independiente del loan calculator ni otros servicios.
 
-1. Radar → Revisar → abrir la vacante → Añadir a Postulaciones.
-2. Confirmar `Para postular = 1` y una sola fila CRM.
-3. Cambiar a `Postulada`; debe crearse `applied_at`.
-4. Cambiar `Entrevista → Oferta → Cerrada`; conteos/lista deben seguir el cambio.
-5. Reabrir a `Entrevista`; `closed_at = NULL` y `applied_at` se conserva.
-6. Intentar añadir de nuevo desde Radar; no debe duplicarse (`job_applications count = 1`).
-7. `MatchAnalysis` debe seguir `REVIEW`; el estado CRM nunca altera matching.
+### Gate B — deploy localhost-only
 
-### UX
+1. Crear `/srv/job-radar/{app,storage,backups}` con permisos apropiados.
+2. Checkout exacto de `main` y `.env.production` 0600 con secretos aleatorios URL-safe.
+3. Telegram deshabilitado.
+4. Pin de `JOB_RADAR_IMAGE=ghcr.io/gumorenos/job-radar:sha-<main-commit>`.
+5. Ejecutar `bash ops/deploy.sh .env.production`.
+6. Ejecutar `bash ops/smoke.sh .env.production`.
+7. Confirmar API/PostgreSQL solo loopback, worker sin puerto y Alembic head.
+8. Ejecutar `bash ops/backup.sh .env.production /srv/job-radar/backups 14` y verificar dump no vacío/0600.
+9. Confirmar que servicios ajenos permanecen sin cambios.
 
-- Desktop 1366×768 y mobile 390×844.
-- Consola limpia.
-- Confirmar que ya no existe la barra flotante inferior que solapaba el detalle.
-- API y PostgreSQL solo localhost.
+### Gate C — canary OpenClaw
 
----
+Con Job Radar aún localhost-only:
 
-## QA-002 — CV library v1
+1. Configurar el API key como secreto/runtime de OpenClaw, nunca en prompt/código/log.
+2. Mantener OpenClaw -> Notion en paralelo.
+3. Enviar una vacante canary identificable a `POST http://127.0.0.1:8000/api/v1/ingestions/jobs`.
+4. Verificar 202, procesamiento completo, Radar y explicación.
+5. Repetir exactamente la misma request con mismo idempotency key: `already_accepted`, sin duplicados.
+6. Enviar una segunda observación real con nueva key y comprobar dedupe/sighting según corresponda.
 
-**Estado:** PENDIENTE  
-**PR:** #9 — `CVs: add versioned personal library`  
-**Branch:** `feat/cv-library-v1`  
-**HEAD esperado:** `5d11f0927db16dcc93026396134291f8c888adcb`  
-**CI GitHub:** PASS  
-**Bloquea merge:** Sí
+### Gate D — exposición dashboard
 
-### Runtime
+Solo tras PASS de A-C:
 
-1. `uv sync --locked`, Ruff, mypy y unit tests.
-2. Build Docker y confirmar `arm64`.
-3. PostgreSQL, `alembic upgrade head`, API y worker.
-4. `/health`, `/ready`, `/app/` y `/app/cvs.js` = 200.
-5. Con `.env` exportado ejecutar `tests/integration`.
+- añadir hostname Job Radar al `cloudflared` systemd existente apuntando a `127.0.0.1:8000`;
+- protegerlo con Cloudflare Access o control equivalente antes de uso externo;
+- validar `/app/` por HTTPS;
+- confirmar que PostgreSQL nunca es accesible externamente.
 
-### Flujo CV
+### Resultado esperado
 
-1. Abrir `/app/#/cvs`; debe cargar `/api/v1/cvs` sin errores.
-2. Añadir `CV Base QA`, marcar Base y Activo. Debe quedar `APPROVED`, `is_base=true`, `is_active=true`.
-3. Crear Nueva versión; preservar original, crear versión 2 y enlazar `parent_cv_id`.
-4. Confirmar que solo una versión queda activa.
-5. Crear por API `generated_by_ai=true`: debe quedar `DRAFT`, mostrarse `IA` y no poder activarse (`409`).
-6. Intentar crear un borrador IA como Base: debe devolver `409` y no modificar el Base actual.
-7. Aprobar el borrador desde UI y activarlo: `APPROVED` y único activo.
-8. Crear otro borrador IA y rechazarlo: `REJECTED` e inactivo.
-9. PostgreSQL debe conservar intacto el contenido de versiones anteriores.
-
-### UX
-
-- Desktop 1366×768 y mobile 390×844.
-- Dialog Añadir/Nueva versión usable sin overflow bloqueante.
-- Mensajes de guardado/aprobación/activación visibles.
-- Consola limpia y requests sin 4xx/5xx inesperados.
-- API/PostgreSQL solo localhost.
-
----
-
-## QA-003 — Matching positive fit v2
-
-**Estado:** PENDIENTE  
-**PR:** #10 — `Matching: add positive-fit high priority signals`  
-**Branch:** `feat/matching-fit-v2`  
-**HEAD esperado:** `63d53a5509615ff3b69462f4f88b76131334da9a`  
-**CI GitHub:** PASS  
-**Bloquea merge:** Sí
-
-### Objetivo
-
-Validar que `rules-v2` puede elevar oportunidades realmente fuertes a `HIGH_PRIORITY` sin permitir que señales positivas anulen descartes duros ni warnings.
-
-### Casos
-
-1. Ejecutar estáticos/unit/integration, build ARM64, PostgreSQL/Alembic/API/worker.
-2. `Analista Junior de RRHH`, Lima, S/9,000 → `DISCARD` por seniority.
-3. `Strategic HR Business Partner`, Lima, híbrido, sin descripción de área foco → `REVIEW`.
-4. `Senior People Analytics Analyst`, Lima, híbrido, S/9,000, descripción con People Analytics/HR Analytics → `HIGH_PRIORITY`, `analyzer_version=rules-v2`, `recommendation=PRIORIZAR`.
-5. El caso anterior debe guardar `role_matches`, `core_area_matches`, strengths y explicación legible.
-6. Mismo encaje fuerte remoto LATAM con salario S/7,500 → `DISCARD`; el hard rule salarial gana.
-7. Un rol objetivo con solo área adyacente debe seguir `REVIEW`, no `HIGH_PRIORITY`.
-8. Salario desconocido no debe descartar ni borrar un encaje positivo fuerte.
-9. Radar debe reflejar correctamente Alta prioridad/Revisar/Descartadas y detalle explicable.
-10. Desktop/mobile/console sin errores y exposición solo localhost.
-
----
-
-## QA-004 — Profile settings v1
-
-**Estado:** PENDIENTE  
-**PR:** #11 — `Settings: make search profile editable`  
-**Branch:** `feat/profile-settings-v1`  
-**HEAD esperado:** `784035f3807bee45fe08db4a79402bbc53d80c26`  
-**CI GitHub:** PASS  
-**Bloquea merge:** Sí
-
-### Objetivo
-
-Validar que Configuración permite editar el perfil de búsqueda en una sola pantalla y que esos cambios persisten sin tocar reglas internas ni crear perfiles duplicados.
-
-### Casos
-
-1. Ejecutar estáticos/unit/integration, build ARM64, PostgreSQL/Alembic/API/worker.
-2. `/app/`, `/app/settings.js`, `/app/settings.css`, `/api/v1/profile` = 200.
-3. Abrir `/app/#/settings`; debe cargar un único perfil activo.
-4. Editar nombre, salario local a S/7,200 y multiplicador remoto a 1.15; UI debe mostrar mínimo remoto S/8,280.
-5. Editar roles, ubicaciones, áreas foco y adyacentes; duplicados/espacios deben normalizarse al guardar.
-6. Cambiar hora de revisión a 20:30 y mantener `America/Lima`.
-7. Recargar: todos los valores deben persistir y `candidate_profiles count = 1`.
-8. `rules` debe conservarse sin alteración.
-9. Multiplicador menor que 1 y zona horaria IANA inválida deben devolver 422.
-10. Ingestar una vacante con salario local S/7,100 después del cambio a S/7,200: el siguiente análisis debe usar el nuevo mínimo y descartarla.
-11. Desktop 1366×768 y mobile 390×844; save bar, textareas y campos sin solapes; consola limpia.
-12. API/PostgreSQL solo localhost.
-
----
-
-## QA-005 — Notification planner v1
-
-**Estado:** PENDIENTE  
-**PR:** #12 — `Notifications: plan dashboard and Telegram intents`  
-**Branch:** `feat/notification-planner-v1`  
-**HEAD esperado:** `94d2161596e086489f3b62d129084fbca20a6561`  
-**CI GitHub:** PASS  
-**Dependencia:** PR #10 / Matching v2  
-**Bloquea merge:** Sí
-
-### Objetivo
-
-Validar que el sistema crea intenciones de notificación correctas sin enviar todavía mensajes externos ni afectar el worker cuando Telegram no está configurado.
-
-### Casos
-
-1. Ejecutar estáticos/unit/integration, build ARM64, PostgreSQL/Alembic/API/worker.
-2. Vacante `DISCARD` → cero filas nuevas en `notifications`.
-3. Vacante `HIGH_PRIORITY` → dos filas PENDING: `DASHBOARD/IMMEDIATE` y `TELEGRAM/IMMEDIATE`.
-4. Vacante `REVIEW` → `DASHBOARD/IMMEDIATE` + `TELEGRAM/DAILY_REVIEW`.
-5. Para perfil `America/Lima` con revisión 21:00, la fila DAILY_REVIEW debe programarse a las 21:00 local; si ya pasó, al día siguiente.
-6. Reejecutar el planner sobre el mismo `MatchAnalysis` no debe duplicar filas.
-7. `/api/v1/notifications/summary` debe reflejar estados correctamente.
-8. `/api/v1/notifications` debe filtrar por status/channel/type y devolver título/empresa correctos.
-9. No debe existir ninguna tarea `SEND_NOTIFICATION` en esta etapa y no debe salir tráfico a Telegram.
-10. Ingesta y matching deben completar normalmente sin credenciales Telegram.
-11. Logs sin tokens, payloads sensibles ni errores; API/PostgreSQL solo localhost.
-
----
-
-## QA-006 — Core review correctness fixes
-
-**Estado:** PENDIENTE  
-**PR:** #13 — `Core review: fix location and rediscovery correctness`  
-**Branch:** `fix/core-review-critical`  
-**HEAD esperado:** se actualiza con el commit final del PR  
-**CI GitHub:** PASS antes de este cambio documental  
-**Bloquea merge:** Sí
-
-### Objetivo
-
-Validar en Oracle ARM64 que las correcciones críticas de geografía y redescubrimiento no producen falsos descartes, análisis redundantes ni datos obsoletos.
-
-### Casos
-
-1. Ejecutar estáticos/unit/integration y build Docker ARM64; confirmar que el build usa `uv.lock` sin resolver dependencias nuevas.
-2. Levantar PostgreSQL/Alembic/API/worker en el proyecto QA aislado; `/health`, `/ready` y `/app/` = 200.
-3. Ingestar una vacante ONSITE en `Ate, Lima` y otra en `San Juan de Lurigancho`: ninguna debe descartarse por `ONSITE_LOCATION`.
-4. Ingestar una ONSITE en `Arequipa, Perú`: debe quedar `DISCARD` por `ONSITE_LOCATION`.
-5. Ingestar una publicación con URL estable, S/8,500 y descripción A; antes de ejecutar su análisis, redescubrir la misma URL con S/6,500 y descripción B.
-6. Debe existir un solo `ANALYZE_MATCH` pendiente, el posting/job debe contener S/6,500/descripción B y el análisis final debe usar esos datos y quedar `DISCARD` por salario.
-7. Redescubrir después exactamente la misma publicación: debe crear un nuevo `PostingSighting`, actualizar `last_seen`, pero no crear otro `MatchAnalysis` ni otra tarea de análisis.
-8. Logs sin errores ni datos sensibles; API/PostgreSQL solo localhost; limpiar QA al terminar.
-
----
-
-## Cierre de un bloque
-
-Un bloque pasa a PASS solo cuando OpenClaw confirme el HEAD exacto, runtime ARM64, pruebas automatizadas, flujo funcional, UX solicitada, ausencia de cambios de código/producción y limpieza del entorno QA. Hasta entonces el PR correspondiente permanece sin merge.
+Reporte final: PASS/FAIL por gate, commit e imagen exactos, health/ready, migración, bindings, backup, canary, idempotencia/dedupe, servicios ajenos sin cambios, Cloudflare/Access si se ejecutó y rollback image registrado.
