@@ -63,6 +63,16 @@ def _create_job() -> Job:
         return job
 
 
+def test_existing_job_without_application_returns_null() -> None:
+    job = _create_job()
+
+    with TestClient(app) as client:
+        response = client.get(f"/api/v1/applications/by-job/{job.id}")
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+
 def test_add_job_is_idempotent_and_visible_in_to_apply() -> None:
     job = _create_job()
 
