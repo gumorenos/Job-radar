@@ -30,21 +30,34 @@ service_is_running() {
   [[ -n "$("${compose[@]}" ps --status running --quiet "$service" 2>/dev/null || true)" ]]
 }
 
+service_binding() {
+  local service="$1"
+  local container_port="$2"
+  "${compose[@]}" port "$service" "$container_port" 2>/dev/null || true
+}
+
 check_binding() {
   local service="$1"
-  local port="$2"
+  local container_port="$2"
+  local requested_port="$3"
 
   if service_is_running "$service"; then
-    echo "$service already running under Job Radar Compose; port $port may remain bound during upgrade."
-    return 0
+    local binding
+    local current_port
+    binding="$(service_binding "$service" "$container_port")"
+    current_port="${binding##*:}"
+    if [[ -n "$binding" && "$current_port" == "$requested_port" ]]; then
+      echo "$service already running under Job Radar Compose on $binding; upgrade binding accepted."
+      return 0
+    fi
   fi
 
-  if port_in_use "$port"; then
-    echo "Port 127.0.0.1:$port is already in use by another process/service." >&2
+  if port_in_use "$requested_port"; then
+    echo "Port 127.0.0.1:$requested_port is already in use by another process/service." >&2
     exit 1
   fi
 
-  echo "Port 127.0.0.1:$port is available."
+  echo "Port 127.0.0.1:$requested_port is available."
 }
 
 command -v docker >/dev/null
@@ -54,7 +67,7 @@ command -v curl >/dev/null
 docker compose version >/dev/null
 "${compose[@]}" config >/dev/null
 
-check_binding api "$JOB_RADAR_PORT"
-check_binding postgres "$POSTGRES_PORT"
+check_binding api 8000 "$JOB_RADAR_PORT"
+check_binding postgres 5432 "$POSTGRES_PORT"
 
 echo "Job Radar production preflight passed."
