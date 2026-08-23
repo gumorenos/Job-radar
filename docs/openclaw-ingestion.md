@@ -6,14 +6,16 @@ OpenClaw must never connect directly to PostgreSQL.
 
 ## Endpoint
 
+Use the loopback API port configured in Job Radar production. On the current Oracle VPS the selected port is `8010` because `8000` is already used by another application.
+
 ```http
-POST http://127.0.0.1:8000/api/v1/ingestions/jobs
+POST http://127.0.0.1:8010/api/v1/ingestions/jobs
 Authorization: Bearer <JOB_RADAR_API_KEY>
 Idempotency-Key: <stable-key-for-this-http-discovery-event>
 Content-Type: application/json
 ```
 
-Use localhost from the VPS. Do not route host-local ingestion through Cloudflare.
+Do not route host-local ingestion through Cloudflare. If `JOB_RADAR_PORT` changes later, update the OpenClaw runtime endpoint accordingly rather than hard-coding a public hostname.
 
 ## Idempotency
 
@@ -85,14 +87,7 @@ OpenClaw discovery
    `-> Job Radar ingestion API
 ```
 
-Keep both paths temporarily. Compare a real sample for:
-
-- missing/extra opportunities;
-- title/company/location fidelity;
-- exact/repeated discovery behavior;
-- HIGH_PRIORITY / REVIEW / DISCARD decisions;
-- explanation quality;
-- notification intents.
+Keep both paths temporarily. Compare a real sample for missing/extra opportunities, data fidelity, repeat discovery behavior, classification/explanations and notification intents.
 
 Do not remove the Notion path until Job Radar has demonstrated reliable real-world ingestion and the user explicitly approves cutover.
 
