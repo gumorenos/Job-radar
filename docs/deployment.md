@@ -5,18 +5,18 @@ This runbook deploys the personal v1 core to the Oracle ARM64 VPS without exposi
 ## Production topology
 
 ```text
-OpenClaw (host) -> 127.0.0.1:8000 -> Job Radar API (Docker)
-                                      -> PostgreSQL (Docker)
-                                      -> worker (Docker)
+OpenClaw (host) -> 127.0.0.1:${JOB_RADAR_PORT} -> Job Radar API (Docker)
+                                                        -> PostgreSQL (Docker)
+                                                        -> worker (Docker)
 
-Cloudflare systemd tunnel -> 127.0.0.1:8000 -> dashboard/API
+Cloudflare systemd tunnel -> 127.0.0.1:${JOB_RADAR_PORT} -> dashboard/API
 ```
 
-- API host binding: `127.0.0.1:8000`.
+- API host binding: loopback only. Current selected production port: `127.0.0.1:8010` because `8000` is already owned by `oraculo-prod-api-1` on this VPS.
 - PostgreSQL host binding: `127.0.0.1:5432`.
 - Worker publishes no port.
 - Existing unrelated Cloudflare/Docker services must not be modified.
-- The existing host `cloudflared` systemd tunnel is the intended tunnel for Job Radar.
+- The existing host `cloudflared` systemd tunnel is the intended tunnel for Job Radar, but public exposure is a separate post-deploy step.
 - Do not expose the dashboard publicly without Cloudflare Access or equivalent protection.
 
 ## Release image
@@ -32,7 +32,7 @@ The Docker image contains the OCI source label so GHCR links it to this reposito
 
 ## First deploy preparation
 
-On the VPS, use a dedicated directory such as `/srv/job-radar` and create:
+On the VPS, use `/srv/job-radar` and create:
 
 - `/srv/job-radar/app` — repository checkout
 - `/srv/job-radar/storage` — application file storage
@@ -45,15 +45,17 @@ Telegram stays disabled for the first deploy.
 
 ## Preflight
 
-Before changing anything, record:
+Before changing anything, record architecture/resources, Docker/Compose, listeners, existing containers/systemd services, current cloudflared state and unrelated-service health.
 
-- host architecture and free disk/RAM;
-- Docker + Compose versions;
-- listening ports;
-- existing containers and systemd services;
-- current `cloudflared` service/tunnel configuration;
-- that ports 8000 and 5432 are available on loopback;
-- that unrelated services are healthy.
+Then run:
+
+```bash
+bash ops/preflight.sh .env.production
+```
+
+The script fails before deployment if the selected API/PostgreSQL loopback ports are already owned by another service. It permits those ports when the corresponding Job Radar Compose service is already running during a later upgrade.
+
+The current Oracle preflight established that `127.0.0.1:8000` is unavailable and `127.0.0.1:5432` is free. `8010` is the selected API candidate and must be rechecked immediately before first deploy.
 
 Do not consolidate or modify unrelated Cloudflare tunnels/containers.
 
@@ -66,9 +68,9 @@ bash ops/deploy.sh .env.production
 bash ops/smoke.sh .env.production
 ```
 
-`deploy.sh` validates production placeholders, pulls the pinned image, starts PostgreSQL, runs `alembic upgrade head`, starts API/worker and waits for `/ready`.
+`deploy.sh` runs the port preflight, validates production placeholders, pulls the pinned image, starts PostgreSQL, runs `alembic upgrade head`, starts API/worker and waits for `/ready`.
 
-The first deployment should remain localhost-only until runtime validation passes.
+The first deployment stays localhost-only until runtime validation passes.
 
 ## Backup
 
@@ -95,13 +97,13 @@ Do not automatically downgrade database migrations. Before any future destructiv
 
 ## Cloudflare exposure
 
-Only after localhost smoke passes:
+Only after localhost smoke and OpenClaw canary pass.
 
-1. add a Job Radar hostname to the existing host `cloudflared` systemd tunnel pointing to `http://127.0.0.1:8000`;
-2. protect the hostname with Cloudflare Access before treating it as a dashboard URL;
-3. verify `/app/` through the hostname and confirm PostgreSQL remains unreachable externally.
+The existing main `cloudflared` service is token-run and currently has no local `/etc/cloudflared/config.yml`. Therefore do not assume hostname ingress can be edited on disk and do not rewrite/restart the service merely to expose Job Radar. Configure the hostname/route through the Cloudflare-managed tunnel control plane that owns that token, then point it to `http://127.0.0.1:${JOB_RADAR_PORT}` and protect it with Cloudflare Access before external use.
 
-The ingestion path for host-local OpenClaw remains `http://127.0.0.1:8000`, not the public hostname.
+The current systemd warning that the cloudflared unit changed on disk is unrelated operational debt. Do not run `daemon-reload` or restart cloudflared as part of the Job Radar deployment unless separately approved and validated for all tunnel users.
+
+The ingestion path for host-local OpenClaw remains localhost, not the public hostname.
 
 ## OpenClaw cutover
 
@@ -112,6 +114,7 @@ Initial burn-in keeps the existing OpenClaw -> Notion path in parallel with Open
 ## Definition of production-ready
 
 - exact `main` commit and immutable image recorded;
+- selected loopback API port documented and conflict-free;
 - API/worker/PostgreSQL healthy on ARM64;
 - Alembic at head;
 - API/PostgreSQL loopback-only;
