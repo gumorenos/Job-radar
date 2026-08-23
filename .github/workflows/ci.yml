@@ -56,7 +56,7 @@ jobs:
         run: uv run --locked mypy app tests
 
       - name: Deployment shell syntax
-        run: bash -n ops/deploy.sh ops/backup.sh ops/smoke.sh
+        run: bash -n ops/preflight.sh ops/deploy.sh ops/backup.sh ops/smoke.sh
 
       - name: Production Compose config
         run: docker compose --env-file .env.production.example config >/dev/null
