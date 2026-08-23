@@ -20,6 +20,8 @@ if grep -Eq 'REPLACE_WITH|change-me|dev-only-change-me|job_radar_dev' "$ENV_FILE
   exit 1
 fi
 
+bash ops/preflight.sh "$ENV_FILE"
+
 compose=(docker compose --env-file "$ENV_FILE")
 
 "${compose[@]}" config >/dev/null
