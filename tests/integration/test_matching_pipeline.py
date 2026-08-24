@@ -121,7 +121,7 @@ def test_worker_discards_excluded_seniority_and_radar_reflects_it() -> None:
         notification_count = session.scalar(select(func.count()).select_from(Notification))
         assert analysis is not None
         assert analysis.classification == Classification.DISCARD
-        assert analysis.analyzer_version == "rules-v4"
+        assert analysis.analyzer_version == "rules-v5"
         assert analysis.career_move_assessment is not None
         assert notification_count == 0
         results = cast(list[dict[str, object]], analysis.rule_results["results"])
@@ -153,7 +153,7 @@ def test_worker_creates_review_analysis_and_daily_review_notification() -> None:
 
         assert analysis is not None
         assert analysis.classification == Classification.REVIEW
-        assert analysis.analyzer_version == "rules-v4"
+        assert analysis.analyzer_version == "rules-v5"
         assert analysis.career_move_assessment is not None
         assert analysis.confidence is not None
         assert profile is not None
@@ -211,7 +211,7 @@ def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
         notifications = list(session.scalars(select(Notification)))
         assert analysis is not None
         assert analysis.classification == Classification.HIGH_PRIORITY
-        assert analysis.analyzer_version == "rules-v4"
+        assert analysis.analyzer_version == "rules-v5"
         assert analysis.career_move_assessment is not None
         assert analysis.career_move_assessment.startswith("Movimiento alineado:")
         assert analysis.recommendation == "PRIORIZAR"
