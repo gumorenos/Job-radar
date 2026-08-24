@@ -1,21 +1,19 @@
 const duplicateCandidates = new Map();
 const radarPageSize = 50;
+const duplicatePageSize = 50;
 let radarPageItems = [];
 let radarPageTotal = 0;
 let radarPageContext = "";
 let radarPageRequestId = 0;
+let duplicatePageItems = [];
+let duplicatePageTotal = 0;
+let duplicatePageContext = "";
+let duplicatePageRequestId = 0;
 
 function duplicatePercent(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
   return `${Math.round(number * 100)}%`;
-}
-
-function duplicateJobSearchText(job) {
-  return [job.title, job.company, job.location, job.salary_text]
-    .filter(Boolean)
-    .join(" ")
-    .toLocaleLowerCase("es");
 }
 
 function duplicateMeta(job) {
@@ -31,11 +29,14 @@ function renderDuplicateCandidates(items) {
   items.forEach((item) => duplicateCandidates.set(item.id, item));
 
   if (!items.length) {
+    const search = opportunitySearch.value.trim();
     opportunityList.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">≋</div>
-        <h2>Sin posibles duplicados</h2>
-        <p>No hay pares dudosos pendientes de decisión humana.</p>
+        <h2>${search ? "Sin duplicados que coincidan" : "Sin posibles duplicados"}</h2>
+        <p>${search
+          ? `No hay pares pendientes que coincidan con “${escapeHtml(search)}”.`
+          : "No hay pares dudosos pendientes de decisión humana."}</p>
       </div>`;
     return;
   }
@@ -134,19 +135,70 @@ async function resolveDuplicateCandidate(candidateId, decision) {
   }
 }
 
-async function loadDuplicateCandidates() {
-  opportunityList.innerHTML = `<div class="list-loading">Buscando posibles duplicados…</div>`;
+function duplicatePagingContext() {
+  return opportunitySearch.value.trim();
+}
+
+function resetDuplicatePaging() {
+  duplicatePageItems = [];
+  duplicatePageTotal = 0;
+  duplicatePageContext = duplicatePagingContext();
+}
+
+function bindDuplicateLoadMore() {
+  const button = document.getElementById("duplicateLoadMore");
+  if (button) {
+    button.addEventListener("click", () => loadDuplicateCandidates({ append: true }));
+  }
+}
+
+function renderDuplicatePage() {
+  renderDuplicateCandidates(duplicatePageItems);
+  const remaining = Math.max(0, duplicatePageTotal - duplicatePageItems.length);
+  if (!remaining) return;
+
+  opportunityList.insertAdjacentHTML("beforeend", `
+    <div class="radar-load-more">
+      <span>Mostrando ${duplicatePageItems.length} de ${duplicatePageTotal}</span>
+      <button type="button" class="secondary" id="duplicateLoadMore">
+        Cargar más · ${Math.min(duplicatePageSize, remaining)}
+      </button>
+    </div>`);
+  bindDuplicateLoadMore();
+}
+
+async function loadDuplicateCandidates({ append = false } = {}) {
+  const context = duplicatePagingContext();
+  if (!append || context !== duplicatePageContext) resetDuplicatePaging();
+
+  const requestId = ++duplicatePageRequestId;
+  const offset = append ? duplicatePageItems.length : 0;
+  if (!append) {
+    opportunityList.innerHTML = `<div class="list-loading">Buscando posibles duplicados…</div>`;
+  } else {
+    const button = document.getElementById("duplicateLoadMore");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Cargando…";
+    }
+  }
+
+  const params = new URLSearchParams({
+    status: "PENDING",
+    limit: String(duplicatePageSize),
+    offset: String(offset),
+  });
+  const search = opportunitySearch.value.trim();
+  if (search) params.set("q", search);
+
   try {
-    const result = await api("/api/v1/radar/duplicates?status=PENDING&limit=100");
-    const search = opportunitySearch.value.trim().toLocaleLowerCase("es");
-    const items = search
-      ? result.items.filter((item) => (
-          duplicateJobSearchText(item.job_a).includes(search)
-          || duplicateJobSearchText(item.job_b).includes(search)
-        ))
-      : result.items;
-    renderDuplicateCandidates(items);
+    const result = await api(`/api/v1/radar/duplicates?${params}`);
+    if (requestId !== duplicatePageRequestId || context !== duplicatePagingContext()) return;
+    duplicatePageItems = append ? [...duplicatePageItems, ...result.items] : result.items;
+    duplicatePageTotal = result.total;
+    renderDuplicatePage();
   } catch (error) {
+    if (requestId !== duplicatePageRequestId) return;
     opportunityList.innerHTML = `
       <div class="empty-state error-state">
         <h2>No se pudieron cargar los duplicados</h2>
@@ -231,15 +283,19 @@ loadRadarJobs = async function loadRadarJobsWithDuplicates(options = {}) {
   if (radarFilter === "duplicates") {
     radarPageRequestId += 1;
     resetRadarPaging();
-    await loadDuplicateCandidates();
+    await loadDuplicateCandidates(options);
     return;
   }
+  duplicatePageRequestId += 1;
+  resetDuplicatePaging();
   await loadPaginatedRadarJobs(options);
 };
 
 opportunitySearch.addEventListener("input", () => {
   radarPageRequestId += 1;
   radarPageContext = "";
+  duplicatePageRequestId += 1;
+  duplicatePageContext = "";
 });
 
 if (currentRoute() === "radar" && radarFilter !== "duplicates") {
