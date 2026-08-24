@@ -11,6 +11,18 @@ STATE_PATH="$TRACKING_DIR/job-radar-sync-state.json"
 LOG_PATH="$TRACKING_DIR/job-radar-sync.log"
 MARKER="# JOB_RADAR_BRIDGE_MANAGED"
 
+if [[ "$OPENCLAW_ROOT" == /home/ubuntu/* && "$(id -un)" != "ubuntu" ]]; then
+  echo "Run the bridge installer as user ubuntu so it updates the correct crontab." >&2
+  exit 1
+fi
+
+command -v crontab >/dev/null
+command -v python3 >/dev/null
+python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' || {
+  echo "OpenClaw bridge requires Python 3.11 or newer." >&2
+  exit 1
+}
+
 if [[ ! -f "$PROD_ENV" ]]; then
   echo "Missing Job Radar production env: $PROD_ENV" >&2
   exit 1
@@ -32,10 +44,15 @@ if [[ "$api_port" != "8010" ]]; then
   exit 1
 fi
 
+existing_not_before=""
+if [[ -f "$OPENCLAW_ENV" ]]; then
+  existing_not_before="$(sed -n 's/^JOB_RADAR_SYNC_NOT_BEFORE=//p' "$OPENCLAW_ENV" | tail -n 1)"
+fi
+not_before="${existing_not_before:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+
 mkdir -p "$OPENCLAW_ROOT/scripts" "$OPENCLAW_ROOT/config" "$TRACKING_DIR"
 install -m 0755 "$ROOT_DIR/ops/openclaw_job_radar_sync.py" "$OPENCLAW_SCRIPT"
 
-not_before="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 umask 077
 cat >"$OPENCLAW_ENV" <<EOF
 JOB_RADAR_API_URL=http://127.0.0.1:8010/api/v1/ingestions/jobs
