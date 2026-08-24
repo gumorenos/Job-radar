@@ -264,18 +264,21 @@ async def upload_cv_file(
         except CvFileError as exc:
             raise _storage_error(exc) from exc
         atomic_replace(temp_path, destination)
-
-        cv.original_filename = original_filename
-        cv.storage_path = relative_path.as_posix()
-        session.commit()
-        session.refresh(cv)
     except Exception:
         temp_path.unlink(missing_ok=True)
-        if cv.storage_path is None:
-            destination.unlink(missing_ok=True)
+        destination.unlink(missing_ok=True)
         session.rollback()
         raise
 
+    cv.original_filename = original_filename
+    cv.storage_path = relative_path.as_posix()
+    try:
+        session.commit()
+    except Exception:
+        destination.unlink(missing_ok=True)
+        session.rollback()
+        raise
+    session.refresh(cv)
     return _item(cv)
 
 
