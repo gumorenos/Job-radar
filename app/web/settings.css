@@ -112,6 +112,8 @@
   backdrop-filter: blur(8px);
 }
 .settings-save-bar span { color: var(--muted); font-size: 12px; }
+.settings-save-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.settings-save-actions button:disabled { opacity: .55; cursor: not-allowed; }
 
 @media (max-width: 760px) {
   .settings-columns { grid-template-columns: 1fr; }
@@ -119,5 +121,7 @@
   .ingestion-source-row { align-items: flex-start; flex-direction: column; gap: 8px; }
   .ingestion-source-metrics { flex-wrap: wrap; justify-content: flex-start; white-space: normal; }
   .settings-save-bar { bottom: 8px; align-items: stretch; flex-direction: column; }
-  .settings-save-bar .primary { width: 100%; }
+  .settings-save-actions { display: grid; grid-template-columns: 1fr; }
+  .settings-save-actions .primary,
+  .settings-save-actions .secondary { width: 100%; }
 }
