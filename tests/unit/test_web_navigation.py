@@ -82,11 +82,15 @@ def test_application_shell_serves_core_frontend_assets() -> None:
     assert "Buscar en postulaciones" in applications_js.text
     assert 'params.set("q", search)' in applications_js.text
     assert "applicationSearchMeta" in applications_js.text
+    assert 'offset: String(offset)' in applications_js.text
+    assert "applicationLoadMore" in applications_js.text
+    assert "Cargar más" in applications_js.text
     assert applications_css.status_code == 200
     assert ".application-row" in applications_css.text
     assert ".application-notes-panel" in applications_css.text
     assert ".application-job-link" in applications_css.text
     assert ".application-search-toolbar" in applications_css.text
+    assert ".application-load-more" in applications_css.text
     assert cvs_js.status_code == 200
     assert "Nueva versión" in cvs_js.text
     assert cvs_css.status_code == 200
