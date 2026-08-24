@@ -209,7 +209,10 @@ def mark_dashboard_notification_read(
 ) -> MarkNotificationsReadResponse:
     notification = session.get(Notification, notification_id)
     if notification is None or notification.channel != NotificationChannel.DASHBOARD:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notificación no encontrada.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notificación no encontrada.",
+        )
 
     now = notification.read_at or datetime.now(UTC)
     updated = 0
