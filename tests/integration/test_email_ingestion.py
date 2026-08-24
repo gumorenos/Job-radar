@@ -266,7 +266,7 @@ def test_extraction_handoff_enters_normal_job_pipeline_and_retry_does_not_duplic
         assert all(task.status == TaskStatus.COMPLETED for task in tasks)
 
 
-def test_completed_extraction_with_no_postings_marks_email_processed_without_job_ingestion() -> None:
+def test_empty_extraction_marks_email_processed_without_job_ingestion() -> None:
     with TestClient(app) as client:
         accepted = client.post(
             "/api/v1/emails/inbound",
