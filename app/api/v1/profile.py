@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -167,7 +167,11 @@ def update_profile(
     return _view(profile)
 
 
-@router.post("/reanalyze", response_model=ProfileReanalysisResponse)
+@router.post(
+    "/reanalyze",
+    response_model=ProfileReanalysisResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def reanalyze_active_jobs(session: SessionDep) -> ProfileReanalysisResponse:
     # This is deliberately explicit rather than tied to PUT /profile. Saving preferences should
     # not unexpectedly fan out worker tasks or produce classification-change notifications.
