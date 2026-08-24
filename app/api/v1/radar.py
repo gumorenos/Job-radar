@@ -322,6 +322,7 @@ def list_radar_jobs(
     session: SessionDep,
     view: RadarView = "high",
     q: str | None = Query(default=None, max_length=200),
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
 ) -> RadarJobList:
     query = _active_jobs_query().order_by(Job.last_seen_at.desc())
@@ -356,8 +357,9 @@ def list_radar_jobs(
         for job in jobs
         if _matches_view(_effective_from_context(context, job.id)[0], view)
     ]
+    page = matched_jobs[offset : offset + limit]
     return RadarJobList(
-        items=[_item_from_context(context, job) for job in matched_jobs[:limit]],
+        items=[_item_from_context(context, job) for job in page],
         total=len(matched_jobs),
         view=view,
     )

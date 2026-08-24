@@ -63,9 +63,28 @@
 .duplicate-status { min-height: 18px; color: var(--muted); font-size: 11px; }
 .duplicate-status.error { color: #a12828; }
 
+.radar-load-more {
+  min-height: 56px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--panel-soft);
+}
+.radar-load-more span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.radar-load-more button { min-height: 36px; }
+.radar-load-more button:disabled { opacity: .65; cursor: wait; }
+
 @media (max-width: 760px) {
   .duplicate-row { grid-template-columns: 1fr; gap: 9px; }
   .duplicate-confidence { justify-self: start; }
   .duplicate-actions { display: grid; grid-template-columns: 1fr; }
   .duplicate-actions button { width: 100%; }
+  .radar-load-more { align-items: stretch; flex-direction: column; }
+  .radar-load-more button { width: 100%; }
 }
