@@ -195,6 +195,36 @@ def test_dashboard_inbox_counts_only_dashboard_and_keeps_exact_total_with_limit(
     assert item["read_at"] is None
 
 
+def test_notification_lists_support_offset_with_exact_totals() -> None:
+    _seed_inbox()
+
+    with TestClient(app) as client:
+        inbox_first = client.get("/api/v1/notifications/inbox?limit=1&offset=0")
+        inbox_second = client.get("/api/v1/notifications/inbox?limit=1&offset=1")
+        inbox_beyond = client.get("/api/v1/notifications/inbox?limit=1&offset=2")
+        generic_first = client.get("/api/v1/notifications?channel=DASHBOARD&limit=1&offset=0")
+        generic_second = client.get("/api/v1/notifications?channel=DASHBOARD&limit=1&offset=1")
+        invalid_inbox = client.get("/api/v1/notifications/inbox?offset=-1")
+        invalid_generic = client.get("/api/v1/notifications?offset=-1")
+
+    assert inbox_first.status_code == 200
+    assert inbox_second.status_code == 200
+    assert inbox_beyond.status_code == 200
+    assert inbox_first.json()["total"] == 2
+    assert inbox_second.json()["total"] == 2
+    assert inbox_beyond.json()["total"] == 2
+    assert inbox_first.json()["items"][0]["id"] != inbox_second.json()["items"][0]["id"]
+    assert inbox_beyond.json()["items"] == []
+
+    assert generic_first.status_code == 200
+    assert generic_second.status_code == 200
+    assert generic_first.json()["total"] == 2
+    assert generic_second.json()["total"] == 2
+    assert generic_first.json()["items"][0]["id"] != generic_second.json()["items"][0]["id"]
+    assert invalid_inbox.status_code == 422
+    assert invalid_generic.status_code == 422
+
+
 def test_mark_one_notification_read_is_idempotent_and_rejects_telegram() -> None:
     dashboard_id, telegram_id = _seed_inbox()
 
