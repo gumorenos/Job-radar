@@ -6,8 +6,12 @@ const applicationStageLabels = {
   CLOSED: "Cerrada",
 };
 
+const applicationPageSize = 50;
 let applicationStage = "TO_APPLY";
 let applicationSearchTimer = null;
+let applicationListRequestId = 0;
+let applicationLoadedItems = [];
+let applicationTotal = 0;
 const applicationsList = document.getElementById("applicationsList");
 const applicationStageGrid = document.querySelector(".application-stages");
 const applicationSearchToolbar = document.createElement("div");
@@ -46,8 +50,14 @@ async function applicationRequest(path, options = {}) {
   return response.json();
 }
 
+function resetApplicationPaging() {
+  applicationLoadedItems = [];
+  applicationTotal = 0;
+}
+
 function setApplicationStage(stage, { reload = true } = {}) {
   applicationStage = stage;
+  resetApplicationPaging();
   document.querySelectorAll("[data-application-stage]").forEach((button) => {
     button.classList.toggle("active", button.dataset.applicationStage === stage);
   });
@@ -65,7 +75,69 @@ function notesStateLabel(notes) {
   return notes ? "Con notas" : "Sin notas";
 }
 
-function renderApplications(items) {
+function applicationRows(items) {
+  return items.map((item) => `
+    <article class="application-row" data-application-id="${item.id}">
+      <div class="application-row-main">
+        <div class="application-copy">
+          <button
+            type="button"
+            class="application-job-link"
+            data-job-link="${item.job_id}"
+            aria-label="Abrir ${escapeHtml(item.title)} en Radar"
+          >${escapeHtml(item.title)}</button>
+          <span>${escapeHtml(item.company || "Empresa no indicada")}</span>
+          <small>${escapeHtml(item.location || "Ubicación no indicada")}${item.applied_at ? ` · Postulada ${formatDate(item.applied_at)}` : ""}</small>
+        </div>
+        <label class="application-stage-control">
+          <span>Etapa</span>
+          <select data-stage-select="${item.id}" aria-label="Etapa de ${escapeHtml(item.title)}">
+            ${Object.entries(applicationStageLabels).map(([value, label]) => `
+              <option value="${value}" ${value === item.stage ? "selected" : ""}>${label}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <details class="application-notes-panel">
+        <summary>
+          Notas de seguimiento
+          <span data-notes-state="${item.id}">${notesStateLabel(item.notes)}</span>
+        </summary>
+        <label class="application-notes-field">
+          <span>Notas</span>
+          <textarea
+            data-notes-input="${item.id}"
+            maxlength="5000"
+            rows="4"
+            placeholder="Ej. contacto, siguiente paso, feedback de entrevista…"
+          >${escapeHtml(item.notes || "")}</textarea>
+        </label>
+        <div class="application-notes-actions">
+          <span class="application-notes-status" data-notes-status="${item.id}" role="status"></span>
+          <button type="button" class="secondary" data-save-notes="${item.id}">Guardar notas</button>
+        </div>
+      </details>
+    </article>`).join("");
+}
+
+function bindApplicationRows() {
+  document.querySelectorAll("[data-stage-select]").forEach((select) => {
+    select.addEventListener("change", () => {
+      updateApplicationStage(select.dataset.stageSelect, select.value, select);
+    });
+  });
+  document.querySelectorAll("[data-save-notes]").forEach((button) => {
+    button.addEventListener("click", () => saveApplicationNotes(button.dataset.saveNotes, button));
+  });
+  document.querySelectorAll("[data-job-link]").forEach((button) => {
+    button.addEventListener("click", () => openApplicationInRadar(button.dataset.jobLink));
+  });
+  const loadMore = document.getElementById("applicationLoadMore");
+  if (loadMore) {
+    loadMore.addEventListener("click", () => loadApplicationList({ append: true }));
+  }
+}
+
+function renderApplications(items, total) {
   if (!items.length) {
     const search = applicationSearch.value.trim();
     applicationsList.innerHTML = `
@@ -78,81 +150,64 @@ function renderApplications(items) {
     return;
   }
 
-  applicationsList.innerHTML = `
-    <div class="application-table">
-      ${items.map((item) => `
-        <article class="application-row" data-application-id="${item.id}">
-          <div class="application-row-main">
-            <div class="application-copy">
-              <button
-                type="button"
-                class="application-job-link"
-                data-job-link="${item.job_id}"
-                aria-label="Abrir ${escapeHtml(item.title)} en Radar"
-              >${escapeHtml(item.title)}</button>
-              <span>${escapeHtml(item.company || "Empresa no indicada")}</span>
-              <small>${escapeHtml(item.location || "Ubicación no indicada")}${item.applied_at ? ` · Postulada ${formatDate(item.applied_at)}` : ""}</small>
-            </div>
-            <label class="application-stage-control">
-              <span>Etapa</span>
-              <select data-stage-select="${item.id}" aria-label="Etapa de ${escapeHtml(item.title)}">
-                ${Object.entries(applicationStageLabels).map(([value, label]) => `
-                  <option value="${value}" ${value === item.stage ? "selected" : ""}>${label}</option>`).join("")}
-              </select>
-            </label>
-          </div>
-          <details class="application-notes-panel">
-            <summary>
-              Notas de seguimiento
-              <span data-notes-state="${item.id}">${notesStateLabel(item.notes)}</span>
-            </summary>
-            <label class="application-notes-field">
-              <span>Notas</span>
-              <textarea
-                data-notes-input="${item.id}"
-                maxlength="5000"
-                rows="4"
-                placeholder="Ej. contacto, siguiente paso, feedback de entrevista…"
-              >${escapeHtml(item.notes || "")}</textarea>
-            </label>
-            <div class="application-notes-actions">
-              <span class="application-notes-status" data-notes-status="${item.id}" role="status"></span>
-              <button type="button" class="secondary" data-save-notes="${item.id}">Guardar notas</button>
-            </div>
-          </details>
-        </article>`).join("")}
-    </div>`;
+  const remaining = Math.max(0, total - items.length);
+  const loadMore = remaining
+    ? `<div class="application-load-more">
+        <span>Mostrando ${items.length} de ${total}</span>
+        <button type="button" class="secondary" id="applicationLoadMore">
+          Cargar más · ${Math.min(applicationPageSize, remaining)}
+        </button>
+      </div>`
+    : "";
 
-  document.querySelectorAll("[data-stage-select]").forEach((select) => {
-    select.addEventListener("change", () => {
-      updateApplicationStage(select.dataset.stageSelect, select.value, select);
-    });
-  });
-  document.querySelectorAll("[data-save-notes]").forEach((button) => {
-    button.addEventListener("click", () => saveApplicationNotes(button.dataset.saveNotes, button));
-  });
-  document.querySelectorAll("[data-job-link]").forEach((button) => {
-    button.addEventListener("click", () => openApplicationInRadar(button.dataset.jobLink));
-  });
+  applicationsList.innerHTML = `
+    <div class="application-table">${applicationRows(items)}</div>
+    ${loadMore}`;
+  bindApplicationRows();
 }
 
 async function loadApplicationSummary() {
   renderApplicationSummary(await applicationRequest("/api/v1/applications/summary"));
 }
 
-async function loadApplicationList() {
-  applicationsList.innerHTML = `<div class="applications-loading">Cargando postulaciones…</div>`;
-  const params = new URLSearchParams({ stage: applicationStage, limit: "100" });
+async function loadApplicationList({ append = false } = {}) {
+  const requestId = ++applicationListRequestId;
+  const offset = append ? applicationLoadedItems.length : 0;
+  if (!append) {
+    resetApplicationPaging();
+    applicationsList.innerHTML = `<div class="applications-loading">Cargando postulaciones…</div>`;
+  } else {
+    const button = document.getElementById("applicationLoadMore");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Cargando…";
+    }
+  }
+
+  const params = new URLSearchParams({
+    stage: applicationStage,
+    limit: String(applicationPageSize),
+    offset: String(offset),
+  });
   const search = applicationSearch.value.trim();
   if (search) params.set("q", search);
 
   try {
     const result = await applicationRequest(`/api/v1/applications?${params}`);
+    if (requestId !== applicationListRequestId) return;
+
+    applicationLoadedItems = append
+      ? [...applicationLoadedItems, ...result.items]
+      : result.items;
+    applicationTotal = result.total;
     applicationSearchMeta.textContent = search
       ? `${result.total} ${result.total === 1 ? "resultado" : "resultados"}`
-      : "";
-    renderApplications(result.items);
+      : (applicationLoadedItems.length < result.total
+        ? `${applicationLoadedItems.length} de ${result.total}`
+        : "");
+    renderApplications(applicationLoadedItems, applicationTotal);
   } catch (error) {
+    if (requestId !== applicationListRequestId) return;
     applicationSearchMeta.textContent = "";
     applicationsList.innerHTML = `
       <div class="empty-state panel-empty error-state">
@@ -175,6 +230,7 @@ async function updateApplicationStage(applicationId, stage, select) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stage }),
     });
+    resetApplicationPaging();
     await Promise.all([loadApplicationSummary(), loadApplicationList()]);
   } catch (error) {
     select.disabled = false;
@@ -270,10 +326,14 @@ document.querySelectorAll("[data-application-stage]").forEach((button) => {
 
 applicationSearch.addEventListener("input", () => {
   clearTimeout(applicationSearchTimer);
+  applicationListRequestId += 1;
+  resetApplicationPaging();
   applicationSearchTimer = setTimeout(loadApplicationList, 250);
 });
 applicationSearch.addEventListener("search", () => {
   clearTimeout(applicationSearchTimer);
+  applicationListRequestId += 1;
+  resetApplicationPaging();
   loadApplicationList();
 });
 
