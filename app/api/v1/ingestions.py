@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -59,6 +60,13 @@ class RecentIngestionList(BaseModel):
     source: str | None
 
 
+@dataclass
+class _SourceAccumulator:
+    counts: dict[IngestionStatus, int]
+    last_received_at: datetime | None = None
+    last_processed_at: datetime | None = None
+
+
 def _empty_status_counts() -> dict[IngestionStatus, int]:
     return {item: 0 for item in IngestionStatus}
 
@@ -75,54 +83,36 @@ def ingestion_summary(session: SessionDep) -> IngestionOverview:
         ).group_by(IngestionEvent.ingestion_source, IngestionEvent.status)
     ).all()
 
-    by_source: dict[str, dict[str, object]] = {}
+    by_source: dict[str, _SourceAccumulator] = {}
     for source, ingestion_status, count, last_received, last_processed in rows:
-        current = by_source.setdefault(
-            source,
-            {
-                "counts": _empty_status_counts(),
-                "last_received_at": None,
-                "last_processed_at": None,
-            },
-        )
-        counts = current["counts"]
-        if not isinstance(counts, dict):
-            raise RuntimeError("Invalid ingestion summary accumulator.")
-        counts[ingestion_status] = int(count)
-
-        current_received = current["last_received_at"]
-        if current_received is None or (
-            last_received is not None and last_received > current_received
+        current = by_source.setdefault(source, _SourceAccumulator(counts=_empty_status_counts()))
+        current.counts[ingestion_status] = int(count)
+        if current.last_received_at is None or (
+            last_received is not None and last_received > current.last_received_at
         ):
-            current["last_received_at"] = last_received
-
-        current_processed = current["last_processed_at"]
-        if current_processed is None or (
-            last_processed is not None and last_processed > current_processed
+            current.last_received_at = last_received
+        if current.last_processed_at is None or (
+            last_processed is not None and last_processed > current.last_processed_at
         ):
-            current["last_processed_at"] = last_processed
+            current.last_processed_at = last_processed
 
-    sources: list[IngestionSourceSummary] = []
-    for source, values in by_source.items():
-        counts = values["counts"]
-        if not isinstance(counts, dict):
-            raise RuntimeError("Invalid ingestion summary counts.")
-        sources.append(
-            IngestionSourceSummary(
-                ingestion_source=source,
-                total=sum(int(value) for value in counts.values()),
-                received=int(counts[IngestionStatus.RECEIVED]),
-                processing=int(counts[IngestionStatus.PROCESSING]),
-                completed=int(counts[IngestionStatus.COMPLETED]),
-                partial=int(counts[IngestionStatus.PARTIAL]),
-                failed=int(counts[IngestionStatus.FAILED]),
-                duplicate_request=int(counts[IngestionStatus.DUPLICATE_REQUEST]),
-                last_received_at=values["last_received_at"],
-                last_processed_at=values["last_processed_at"],
-            )
+    sources = [
+        IngestionSourceSummary(
+            ingestion_source=source,
+            total=sum(values.counts.values()),
+            received=values.counts[IngestionStatus.RECEIVED],
+            processing=values.counts[IngestionStatus.PROCESSING],
+            completed=values.counts[IngestionStatus.COMPLETED],
+            partial=values.counts[IngestionStatus.PARTIAL],
+            failed=values.counts[IngestionStatus.FAILED],
+            duplicate_request=values.counts[IngestionStatus.DUPLICATE_REQUEST],
+            last_received_at=values.last_received_at,
+            last_processed_at=values.last_processed_at,
         )
+        for source, values in by_source.items()
+    ]
     sources.sort(
-        key=lambda item: item.last_received_at or datetime.min.replace(tzinfo=None),
+        key=lambda item: item.last_received_at or datetime.min.replace(tzinfo=UTC),
         reverse=True,
     )
 
