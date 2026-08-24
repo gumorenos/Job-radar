@@ -42,6 +42,10 @@ function renderApplicationSummary(summary) {
   });
 }
 
+function notesStateLabel(notes) {
+  return notes ? "Con notas" : "Sin notas";
+}
+
 function renderApplications(items) {
   if (!items.length) {
     applicationsList.innerHTML = `
@@ -56,23 +60,57 @@ function renderApplications(items) {
     <div class="application-table">
       ${items.map((item) => `
         <article class="application-row" data-application-id="${item.id}">
-          <div class="application-copy">
-            <strong>${escapeHtml(item.title)}</strong>
-            <span>${escapeHtml(item.company || "Empresa no indicada")}</span>
-            <small>${escapeHtml(item.location || "Ubicación no indicada")}${item.applied_at ? ` · Postulada ${formatDate(item.applied_at)}` : ""}</small>
+          <div class="application-row-main">
+            <div class="application-copy">
+              <button
+                type="button"
+                class="application-job-link"
+                data-job-link="${item.job_id}"
+                aria-label="Abrir ${escapeHtml(item.title)} en Radar"
+              >${escapeHtml(item.title)}</button>
+              <span>${escapeHtml(item.company || "Empresa no indicada")}</span>
+              <small>${escapeHtml(item.location || "Ubicación no indicada")}${item.applied_at ? ` · Postulada ${formatDate(item.applied_at)}` : ""}</small>
+            </div>
+            <label class="application-stage-control">
+              <span>Etapa</span>
+              <select data-stage-select="${item.id}" aria-label="Etapa de ${escapeHtml(item.title)}">
+                ${Object.entries(applicationStageLabels).map(([value, label]) => `
+                  <option value="${value}" ${value === item.stage ? "selected" : ""}>${label}</option>`).join("")}
+              </select>
+            </label>
           </div>
-          <label class="application-stage-control">
-            <span>Etapa</span>
-            <select data-stage-select="${item.id}" aria-label="Etapa de ${escapeHtml(item.title)}">
-              ${Object.entries(applicationStageLabels).map(([value, label]) => `
-                <option value="${value}" ${value === item.stage ? "selected" : ""}>${label}</option>`).join("")}
-            </select>
-          </label>
+          <details class="application-notes-panel">
+            <summary>
+              Notas de seguimiento
+              <span data-notes-state="${item.id}">${notesStateLabel(item.notes)}</span>
+            </summary>
+            <label class="application-notes-field">
+              <span>Notas</span>
+              <textarea
+                data-notes-input="${item.id}"
+                maxlength="5000"
+                rows="4"
+                placeholder="Ej. contacto, siguiente paso, feedback de entrevista…"
+              >${escapeHtml(item.notes || "")}</textarea>
+            </label>
+            <div class="application-notes-actions">
+              <span class="application-notes-status" data-notes-status="${item.id}" role="status"></span>
+              <button type="button" class="secondary" data-save-notes="${item.id}">Guardar notas</button>
+            </div>
+          </details>
         </article>`).join("")}
     </div>`;
 
   document.querySelectorAll("[data-stage-select]").forEach((select) => {
-    select.addEventListener("change", () => updateApplicationStage(select.dataset.stageSelect, select.value, select));
+    select.addEventListener("change", () => {
+      updateApplicationStage(select.dataset.stageSelect, select.value, select);
+    });
+  });
+  document.querySelectorAll("[data-save-notes]").forEach((button) => {
+    button.addEventListener("click", () => saveApplicationNotes(button.dataset.saveNotes, button));
+  });
+  document.querySelectorAll("[data-job-link]").forEach((button) => {
+    button.addEventListener("click", () => openApplicationInRadar(button.dataset.jobLink));
   });
 }
 
@@ -114,6 +152,38 @@ async function updateApplicationStage(applicationId, stage, select) {
   }
 }
 
+async function saveApplicationNotes(applicationId, button) {
+  const input = document.querySelector(`[data-notes-input="${applicationId}"]`);
+  const status = document.querySelector(`[data-notes-status="${applicationId}"]`);
+  const state = document.querySelector(`[data-notes-state="${applicationId}"]`);
+  if (!input || !status || !state) return;
+
+  button.disabled = true;
+  status.classList.remove("error");
+  status.textContent = "Guardando…";
+  try {
+    const updated = await applicationRequest(`/api/v1/applications/${applicationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: input.value }),
+    });
+    input.value = updated.notes || "";
+    state.textContent = notesStateLabel(updated.notes);
+    status.textContent = "Notas guardadas.";
+  } catch (error) {
+    status.classList.add("error");
+    status.textContent = `No se pudo guardar: ${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function openApplicationInRadar(jobId) {
+  if (!jobId) return;
+  window.location.hash = "#/radar";
+  window.setTimeout(() => loadJobDetail(jobId), 0);
+}
+
 async function syncRadarApplicationAction() {
   const form = detailPanel.querySelector("#feedbackForm");
   const actions = detailPanel.querySelector(".detail-actions");
@@ -147,7 +217,9 @@ async function syncRadarApplicationAction() {
     button.disabled = true;
     button.textContent = "Añadiendo…";
     try {
-      const result = await applicationRequest(`/api/v1/applications/jobs/${jobId}`, { method: "POST" });
+      const result = await applicationRequest(`/api/v1/applications/jobs/${jobId}`, {
+        method: "POST",
+      });
       existing = result.application;
       button.disabled = false;
       button.className = "secondary";
