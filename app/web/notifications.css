@@ -130,6 +130,30 @@
   line-height: 1.4;
 }
 
+.notification-load-more {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel-soft);
+}
+
+.notification-load-more span {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.notification-load-more button {
+  width: 100%;
+  min-height: 34px;
+}
+
+.notification-load-more button:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
 .notification-loading,
 .notification-empty {
   padding: 28px 20px;
