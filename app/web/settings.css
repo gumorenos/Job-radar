@@ -64,6 +64,38 @@
 .rules-summary-card ul { margin: 0; padding-left: 20px; }
 .rules-summary-card li + li { margin-top: 5px; }
 
+.ingestion-health { display: grid; gap: 8px; }
+.ingestion-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ingestion-source-row:first-child { padding-top: 0; }
+.ingestion-source-row > div:first-child { display: grid; gap: 3px; }
+.ingestion-source-row strong { font-size: 13px; }
+.ingestion-source-row span,
+.ingestion-task-summary,
+.ingestion-health-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ingestion-source-metrics {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  white-space: nowrap;
+}
+.ingestion-source-metrics b { color: var(--ink); }
+.ingestion-source-metrics .warning,
+.ingestion-health-empty.error { color: #a12828; }
+.ingestion-task-summary { padding-top: 2px; }
+.ingestion-health-empty { margin: 0; }
+
 .settings-save-bar {
   position: sticky;
   bottom: 12px;
@@ -84,6 +116,8 @@
 @media (max-width: 760px) {
   .settings-columns { grid-template-columns: 1fr; }
   .settings-card { padding: 15px; }
+  .ingestion-source-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .ingestion-source-metrics { flex-wrap: wrap; justify-content: flex-start; white-space: normal; }
   .settings-save-bar { bottom: 8px; align-items: stretch; flex-direction: column; }
   .settings-save-bar .primary { width: 100%; }
 }
