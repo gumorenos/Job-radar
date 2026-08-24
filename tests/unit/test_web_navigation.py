@@ -56,11 +56,17 @@ def test_application_shell_serves_core_frontend_assets() -> None:
     assert "z-index: 26;" in styles.text
     assert structured_fit_js.status_code == 200
     assert "Requisitos vs perfil" in structured_fit_js.text
+    assert "Reglas de negocio" in structured_fit_js.text
+    assert "CV recomendado" in structured_fit_js.text
+    assert "Descarte duro" in structured_fit_js.text
     assert "POSSIBLE_EXCLUSION" in structured_fit_js.text
     assert "structured_fit" in structured_fit_js.text
     assert structured_fit_css.status_code == 200
     assert ".structured-fit-section" in structured_fit_css.text
+    assert ".business-rules-section" in structured_fit_css.text
+    assert ".recommended-cv-section" in structured_fit_css.text
     assert ".fit-status.transferable" in structured_fit_css.text
+    assert ".rule-status.hard" in structured_fit_css.text
     assert duplicates_js.status_code == 200
     assert "Mantener separadas" in duplicates_js.text
     assert duplicates_css.status_code == 200
