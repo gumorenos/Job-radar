@@ -161,6 +161,7 @@ def notification_inbox_summary(session: SessionDep) -> NotificationInboxSummary:
 def notification_inbox(
     session: SessionDep,
     unread_only: bool = False,
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(default=40, ge=1, le=100),
 ) -> NotificationInbox:
     filters = [Notification.channel == NotificationChannel.DASHBOARD]
@@ -174,7 +175,8 @@ def notification_inbox(
         .outerjoin(Company, Job.company_id == Company.id)
         .outerjoin(MatchAnalysis, Notification.match_analysis_id == MatchAnalysis.id)
         .where(*filters)
-        .order_by(Notification.created_at.desc())
+        .order_by(Notification.created_at.desc(), Notification.id.desc())
+        .offset(offset)
         .limit(limit)
     ).all()
     return NotificationInbox(
@@ -232,6 +234,7 @@ def list_notifications(
     status: NotificationStatus | None = None,
     channel: NotificationChannel | None = None,
     notification_type: NotificationType | None = None,
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
 ) -> NotificationList:
     filters = []
@@ -248,7 +251,12 @@ def list_notifications(
         .join(Job, Notification.job_id == Job.id)
         .outerjoin(Company, Job.company_id == Company.id)
         .where(*filters)
-        .order_by(Notification.scheduled_for.asc(), Notification.created_at.asc())
+        .order_by(
+            Notification.scheduled_for.asc(),
+            Notification.created_at.asc(),
+            Notification.id.asc(),
+        )
+        .offset(offset)
         .limit(limit)
     )
     rows = session.execute(query).all()
