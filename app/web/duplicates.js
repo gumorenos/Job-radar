@@ -1,10 +1,6 @@
 const duplicateCandidates = new Map();
-const radarPageSize = 50;
 const duplicatePageSize = 50;
-let radarPageItems = [];
-let radarPageTotal = 0;
-let radarPageContext = "";
-let radarPageRequestId = 0;
+const baseLoadRadarJobs = loadRadarJobs;
 let duplicatePageItems = [];
 let duplicatePageTotal = 0;
 let duplicatePageContext = "";
@@ -145,6 +141,13 @@ function resetDuplicatePaging() {
   duplicatePageContext = duplicatePagingContext();
 }
 
+function cancelDuplicatePaging() {
+  duplicatePageRequestId += 1;
+  duplicatePageItems = [];
+  duplicatePageTotal = 0;
+  duplicatePageContext = "";
+}
+
 function bindDuplicateLoadMore() {
   const button = document.getElementById("duplicateLoadMore");
   if (button) {
@@ -207,97 +210,17 @@ async function loadDuplicateCandidates({ append = false } = {}) {
   }
 }
 
-function radarPagingContext() {
-  return `${radarFilter}\u0000${opportunitySearch.value.trim()}`;
-}
-
-function resetRadarPaging() {
-  radarPageItems = [];
-  radarPageTotal = 0;
-  radarPageContext = radarPagingContext();
-}
-
-function bindRadarLoadMore() {
-  const button = document.getElementById("radarLoadMore");
-  if (button) {
-    button.addEventListener("click", () => loadRadarJobs({ append: true }));
-  }
-}
-
-function renderRadarPage() {
-  renderJobs(radarPageItems);
-  const remaining = Math.max(0, radarPageTotal - radarPageItems.length);
-  if (!remaining) return;
-
-  opportunityList.insertAdjacentHTML("beforeend", `
-    <div class="radar-load-more">
-      <span>Mostrando ${radarPageItems.length} de ${radarPageTotal}</span>
-      <button type="button" class="secondary" id="radarLoadMore">
-        Cargar más · ${Math.min(radarPageSize, remaining)}
-      </button>
-    </div>`);
-  bindRadarLoadMore();
-}
-
-async function loadPaginatedRadarJobs({ append = false } = {}) {
-  const context = radarPagingContext();
-  if (!append || context !== radarPageContext) resetRadarPaging();
-
-  const requestId = ++radarPageRequestId;
-  const offset = append ? radarPageItems.length : 0;
-  if (!append) {
-    opportunityList.innerHTML = `<div class="list-loading">Cargando oportunidades…</div>`;
-  } else {
-    const button = document.getElementById("radarLoadMore");
-    if (button) {
-      button.disabled = true;
-      button.textContent = "Cargando…";
-    }
-  }
-
-  const params = new URLSearchParams({
-    view: radarFilter,
-    limit: String(radarPageSize),
-    offset: String(offset),
-  });
-  const search = opportunitySearch.value.trim();
-  if (search) params.set("q", search);
-
-  try {
-    const result = await api(`/api/v1/radar/jobs?${params}`);
-    if (requestId !== radarPageRequestId || context !== radarPagingContext()) return;
-    radarPageItems = append ? [...radarPageItems, ...result.items] : result.items;
-    radarPageTotal = result.total;
-    renderRadarPage();
-  } catch (error) {
-    if (requestId !== radarPageRequestId) return;
-    opportunityList.innerHTML = `
-      <div class="empty-state error-state">
-        <h2>No se pudo cargar Radar</h2>
-        <p>${escapeHtml(error.message)}</p>
-      </div>`;
-  }
-}
-
 loadRadarJobs = async function loadRadarJobsWithDuplicates(options = {}) {
   if (radarFilter === "duplicates") {
-    radarPageRequestId += 1;
-    resetRadarPaging();
+    cancelRadarPaging();
     await loadDuplicateCandidates(options);
     return;
   }
-  duplicatePageRequestId += 1;
-  resetDuplicatePaging();
-  await loadPaginatedRadarJobs(options);
+  cancelDuplicatePaging();
+  await baseLoadRadarJobs(options);
 };
 
 opportunitySearch.addEventListener("input", () => {
-  radarPageRequestId += 1;
-  radarPageContext = "";
   duplicatePageRequestId += 1;
   duplicatePageContext = "";
 });
-
-if (currentRoute() === "radar" && radarFilter !== "duplicates") {
-  loadRadarJobs();
-}
