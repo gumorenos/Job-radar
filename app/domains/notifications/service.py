@@ -62,6 +62,21 @@ def _notification(
     )
 
 
+def _previous_classification(
+    session: Session,
+    analysis: MatchAnalysis,
+) -> Classification | None:
+    return session.scalar(
+        select(MatchAnalysis.classification)
+        .where(
+            MatchAnalysis.job_id == analysis.job_id,
+            MatchAnalysis.id != analysis.id,
+        )
+        .order_by(MatchAnalysis.created_at.desc())
+        .limit(1)
+    )
+
+
 def plan_match_notifications(
     session: Session,
     analysis: MatchAnalysis,
@@ -78,6 +93,16 @@ def plan_match_notifications(
     )
     if existing:
         return existing
+
+    # A material rediscovery can legitimately produce a new immutable MatchAnalysis while
+    # leaving the decision unchanged. Sources may rediscover the same canonical job many
+    # times; do not turn those reanalyses into duplicate dashboard/Telegram alerts.
+    previous_classification = _previous_classification(session, analysis)
+    if (
+        previous_classification is not None
+        and previous_classification == analysis.classification
+    ):
+        return []
 
     current = now or datetime.now(UTC)
     if current.tzinfo is None:
