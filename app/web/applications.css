@@ -18,6 +18,46 @@
 .application-stages strong { font-size: 12px; color: var(--muted); }
 .application-stages span { font-size: 25px; font-weight: 760; margin-top: 10px; }
 
+.application-search-toolbar {
+  max-width: 1180px;
+  margin: 14px auto 0;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+}
+.application-search-field {
+  width: min(100%, 520px);
+  display: grid;
+  gap: 5px;
+}
+.application-search-field > span {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 750;
+}
+.application-search-field input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--ink);
+}
+.application-search-field input:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: #aeb9e8;
+}
+.application-search-meta {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .applications-list { max-width: 1180px; margin: 14px auto 0; }
 .applications-loading {
   min-height: 260px;
@@ -149,6 +189,9 @@
 .detail-actions button { min-height: 36px; }
 
 @media (max-width: 760px) {
+  .application-search-toolbar { align-items: stretch; flex-direction: column; }
+  .application-search-field { width: 100%; }
+  .application-search-meta { white-space: normal; }
   .application-row-main { align-items: stretch; flex-direction: column; gap: 12px; }
   .application-stage-control { min-width: 0; width: 100%; }
   .application-notes-actions { align-items: stretch; flex-direction: column; }
