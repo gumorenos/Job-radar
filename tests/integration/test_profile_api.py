@@ -48,6 +48,10 @@ def _update_payload(current: dict[str, object]) -> dict[str, object]:
         "name": current["name"],
         "salary_min_pen": current["salary_min_pen"],
         "remote_salary_multiplier": current["remote_salary_multiplier"],
+        "experience_years": current["experience_years"],
+        "degrees": current["degrees"],
+        "skills": current["skills"],
+        "transferable_skills": current["transferable_skills"],
         "target_locations": current["target_locations"],
         "target_roles": current["target_roles"],
         "target_areas": current["target_areas"],
@@ -67,6 +71,10 @@ def test_get_profile_creates_single_default_profile() -> None:
     assert first.json()["id"] == second.json()["id"]
     assert first.json()["salary_min_pen"] == "7000.00"
     assert first.json()["remote_salary_min_pen"] == "7700.0000"
+    assert first.json()["experience_years"] == "5.00"
+    assert first.json()["degrees"] == []
+    assert first.json()["skills"] == []
+    assert first.json()["transferable_skills"] == []
     assert first.json()["timezone"] == "America/Lima"
 
     with get_session_factory()() as session:
@@ -82,7 +90,16 @@ def test_update_profile_normalizes_lists_and_preserves_rule_metadata() -> None:
                 "name": " Búsqueda principal ",
                 "salary_min_pen": 7200,
                 "remote_salary_multiplier": 1.15,
-                "target_locations": ["Lima Metropolitana", "Remote LATAM", "remote latam", ""],
+                "experience_years": 5,
+                "degrees": ["Administración", " administración ", "Psicología"],
+                "skills": ["People Analytics", "Power BI", "people analytics"],
+                "transferable_skills": ["SQL", " sql "],
+                "target_locations": [
+                    "Lima Metropolitana",
+                    "Remote LATAM",
+                    "remote latam",
+                    "",
+                ],
                 "target_roles": ["Strategic HRBP", "Manager", " Strategic HRBP "],
                 "target_areas": ["People Analytics", "Compensaciones"],
                 "adjacent_areas": ["People Operations", "HRIS"],
@@ -98,6 +115,10 @@ def test_update_profile_normalizes_lists_and_preserves_rule_metadata() -> None:
     assert payload["salary_min_pen"] == "7200.00"
     assert payload["remote_salary_multiplier"] == "1.15"
     assert payload["remote_salary_min_pen"] == "8280.0000"
+    assert payload["experience_years"] == "5.00"
+    assert payload["degrees"] == ["Administración", "Psicología"]
+    assert payload["skills"] == ["People Analytics", "Power BI"]
+    assert payload["transferable_skills"] == ["SQL"]
     assert payload["target_locations"] == ["Lima Metropolitana", "Remote LATAM"]
     assert payload["target_roles"] == ["Strategic HRBP", "Manager"]
     assert payload["daily_review_time"] == "20:30:00"
@@ -110,6 +131,10 @@ def test_update_profile_normalizes_lists_and_preserves_rule_metadata() -> None:
         assert profile is not None
         assert profile.salary_min_pen == Decimal("7200")
         assert profile.remote_salary_multiplier == Decimal("1.15")
+        assert profile.experience_years == Decimal("5")
+        assert profile.degrees == ["Administración", "Psicología"]
+        assert profile.skills == ["People Analytics", "Power BI"]
+        assert profile.transferable_skills == ["SQL"]
         assert profile.rules == {"source": "phase-0-confirmed-rules"}
 
 
@@ -128,6 +153,16 @@ def test_update_profile_rejects_invalid_timezone() -> None:
         current = client.get("/api/v1/profile").json()
         payload = _update_payload(current)
         payload["timezone"] = "Mars/Olympus"
+        response = client.put("/api/v1/profile", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_update_profile_rejects_negative_experience() -> None:
+    with TestClient(app) as client:
+        current = client.get("/api/v1/profile").json()
+        payload = _update_payload(current)
+        payload["experience_years"] = -1
         response = client.put("/api/v1/profile", json=payload)
 
     assert response.status_code == 422

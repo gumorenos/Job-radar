@@ -15,6 +15,7 @@ from app.domains.matching.facts import (
     published_salary_unassessed,
 )
 from app.domains.matching.fit import FitSignalInput, assess_career_move, evaluate_positive_fit
+from app.domains.matching.requirements import assess_structured_fit
 from app.domains.matching.rules import (
     MatchingRuleInput,
     MatchingRulePolicy,
@@ -24,7 +25,7 @@ from app.domains.matching.rules import (
 from app.domains.notifications.service import plan_match_notifications
 from app.domains.profiles.service import get_or_create_active_profile
 
-ANALYZER_VERSION = "rules-v4"
+ANALYZER_VERSION = "rules-v5"
 
 
 def _latest_posting(session: Session, job_id: UUID) -> JobPosting | None:
@@ -124,12 +125,21 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
             adjacent_areas=tuple(profile.adjacent_areas),
         )
     )
+    structured_fit = assess_structured_fit(
+        candidate_experience_years=profile.experience_years,
+        candidate_degrees=tuple(profile.degrees),
+        candidate_skills=tuple(profile.skills),
+        transferable_skills=tuple(profile.transferable_skills),
+        required_experience_years=job.required_experience_years,
+        required_degrees=tuple(job.required_degrees),
+        required_skills=tuple(job.required_skills),
+    )
 
     if evaluation.forced_classification == Classification.DISCARD:
         classification = Classification.DISCARD
         confidence = Confidence.HIGH
         recommendation = "DESCARTAR"
-    elif evaluation.requires_review:
+    elif evaluation.requires_review or structured_fit.requires_review:
         classification = Classification.REVIEW
         confidence = Confidence.MEDIUM
         recommendation = "REVISAR"
@@ -147,12 +157,15 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
     warning_messages = [
         item["message"] for item in rule_items if item["severity"] == "WARNING"
     ]
+    structured_gaps = list(structured_fit.gaps)
     if hard_messages:
         explanation = " ".join(str(message) for message in hard_messages)
     elif warning_messages:
         explanation = " ".join(str(message) for message in warning_messages)
+    elif structured_gaps:
+        explanation = " ".join(structured_gaps[:2])
     elif classification == Classification.HIGH_PRIORITY:
-        explanation = " ".join(fit.strengths[:2])
+        explanation = " ".join([*fit.strengths, *structured_fit.strengths][:2])
     else:
         explanation = (
             "No se activaron descartes, pero todavía falta una combinación fuerte de rol de "
@@ -178,7 +191,9 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
                 if evaluation.forced_classification is not None
                 else None
             ),
-            "requires_review": evaluation.requires_review,
+            "requires_review": evaluation.requires_review or structured_fit.requires_review,
+            "business_rules_require_review": evaluation.requires_review,
+            "structured_fit_requires_review": structured_fit.requires_review,
             "results": rule_items,
         },
         skill_analysis={
@@ -186,6 +201,7 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
             "core_area_matches": list(fit.core_area_matches),
             "adjacent_area_matches": list(fit.adjacent_area_matches),
             "positive_fit_rule": "hr_role_and_core_area",
+            "structured_fit": structured_fit.as_dict(),
             "recommended_cv": (
                 {
                     "id": str(recommended_cv.id),
@@ -196,8 +212,8 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
                 else None
             ),
         },
-        strengths=list(fit.strengths),
-        gaps=[*warning_messages, *fit.gaps],
+        strengths=[*fit.strengths, *structured_fit.strengths],
+        gaps=[*warning_messages, *fit.gaps, *structured_gaps],
         career_move_assessment=assess_career_move(fit),
         salary_assessment=str(salary_result["message"]) if salary_result else None,
         recommendation=recommendation,

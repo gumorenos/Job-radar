@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -64,6 +65,9 @@ class Job(TimestampMixin, Base):
     )
     employment_type: Mapped[str | None] = mapped_column(String(120))
     seniority: Mapped[str | None] = mapped_column(String(120))
+    required_experience_years: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    required_degrees: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    required_skills: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     status: Mapped[JobStatus] = mapped_column(
         Enum(JobStatus, native_enum=False, length=16), nullable=False, default=JobStatus.UNKNOWN
     )

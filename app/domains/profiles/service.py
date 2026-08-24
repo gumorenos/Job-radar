@@ -23,6 +23,10 @@ def get_or_create_active_profile(session: Session) -> CandidateProfile:
         is_active=True,
         salary_min_pen=Decimal("7000"),
         remote_salary_multiplier=Decimal("1.10"),
+        experience_years=Decimal("5"),
+        degrees=[],
+        skills=[],
+        transferable_skills=[],
         target_locations=["Lima Metropolitana", "Remote LATAM", "Remote Global"],
         target_roles=[
             "Senior Analyst",
