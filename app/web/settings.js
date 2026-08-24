@@ -19,6 +19,42 @@ const saveProfileSettings = document.getElementById("saveProfileSettings");
 const settingsUnsavedHint = document.getElementById("settingsUnsavedHint");
 const settingsSaveBar = profileSettingsForm.querySelector(".settings-save-bar");
 
+const fitFactsCard = document.createElement("section");
+fitFactsCard.className = "settings-card fit-facts-card";
+fitFactsCard.innerHTML = `
+  <div class="settings-card-heading">
+    <h3>Hechos de compatibilidad</h3>
+    <p>Datos explícitos del perfil usados para explicar experiencia, carrera y skills. Un término por línea.</p>
+  </div>
+  <div class="settings-columns">
+    <label class="settings-field">
+      <span>Años de experiencia</span>
+      <input id="experienceYears" name="experience_years" type="number" min="0" max="80" step="0.5">
+    </label>
+    <label class="settings-field">
+      <span>Carreras / grados</span>
+      <textarea id="profileDegrees" name="degrees" rows="5" placeholder="Ej. Administración"></textarea>
+    </label>
+  </div>
+  <div class="settings-columns">
+    <label class="settings-field">
+      <span>Skills con evidencia directa</span>
+      <textarea id="profileSkills" name="skills" rows="7" placeholder="Ej. People Analytics"></textarea>
+    </label>
+    <label class="settings-field">
+      <span>Skills transferibles / fáciles de cerrar</span>
+      <textarea id="transferableSkills" name="transferable_skills" rows="7" placeholder="Ej. Power BI"></textarea>
+    </label>
+  </div>
+  <p class="settings-derived">Una brecha de experiencia o carrera puede llevar a Revisar, pero no activa un descarte duro por sí sola.</p>`;
+
+const opportunityCard = targetRoles.closest(".settings-card");
+profileSettingsForm.insertBefore(fitFactsCard, opportunityCard);
+const experienceYears = document.getElementById("experienceYears");
+const profileDegrees = document.getElementById("profileDegrees");
+const profileSkills = document.getElementById("profileSkills");
+const transferableSkills = document.getElementById("transferableSkills");
+
 const ingestionCard = document.createElement("section");
 ingestionCard.className = "settings-card ingestion-health-card";
 ingestionCard.innerHTML = `
@@ -103,6 +139,10 @@ function renderProfile(profile) {
   profileName.value = profile.name || "";
   salaryMinPen.value = profile.salary_min_pen ?? 7000;
   remoteSalaryMultiplier.value = profile.remote_salary_multiplier ?? 1.1;
+  experienceYears.value = profile.experience_years ?? "";
+  profileDegrees.value = listToText(profile.degrees);
+  profileSkills.value = listToText(profile.skills);
+  transferableSkills.value = listToText(profile.transferable_skills);
   targetRoles.value = listToText(profile.target_roles);
   targetLocations.value = listToText(profile.target_locations);
   targetAreas.value = listToText(profile.target_areas);
@@ -182,10 +222,15 @@ async function loadProfileSettings() {
 }
 
 function payloadFromForm() {
+  const rawExperience = experienceYears.value.trim();
   return {
     name: profileName.value.trim(),
     salary_min_pen: Number(salaryMinPen.value),
     remote_salary_multiplier: Number(remoteSalaryMultiplier.value),
+    experience_years: rawExperience === "" ? null : Number(rawExperience),
+    degrees: textToList(profileDegrees.value),
+    skills: textToList(profileSkills.value),
+    transferable_skills: textToList(transferableSkills.value),
     target_locations: textToList(targetLocations.value),
     target_roles: textToList(targetRoles.value),
     target_areas: textToList(targetAreas.value),
