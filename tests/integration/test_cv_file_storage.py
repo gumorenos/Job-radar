@@ -179,7 +179,7 @@ def test_stored_file_path_stays_under_configured_root() -> None:
             f"/api/v1/cvs/{cv_id}/file",
             params={"filename": "folder\\..\\notes.txt"},
             headers={"Content-Type": "text/plain; charset=utf-8"},
-            content="Experiencia de People Analytics".encode(),
+            content=b"Experiencia de People Analytics",
         )
 
     assert response.status_code == 200
