@@ -188,29 +188,6 @@ def _item_from_context(
     )
 
 
-def _search_condition(job_a: Job, job_b: Job, pattern: str):
-    company_ids = select(Company.id).where(Company.name.ilike(pattern))
-    posting_job_ids = select(JobPosting.job_id).where(
-        or_(
-            JobPosting.title_raw.ilike(pattern),
-            JobPosting.company_raw.ilike(pattern),
-            JobPosting.location_raw.ilike(pattern),
-        )
-    )
-    return or_(
-        job_a.canonical_title.ilike(pattern),
-        job_a.company_name_raw.ilike(pattern),
-        job_a.location_text.ilike(pattern),
-        job_a.company_id.in_(company_ids),
-        job_a.id.in_(posting_job_ids),
-        job_b.canonical_title.ilike(pattern),
-        job_b.company_name_raw.ilike(pattern),
-        job_b.location_text.ilike(pattern),
-        job_b.company_id.in_(company_ids),
-        job_b.id.in_(posting_job_ids),
-    )
-
-
 @router.get("", response_model=DuplicateCandidateList)
 def list_duplicate_candidates(
     session: SessionDep,
@@ -237,7 +214,27 @@ def list_duplicate_candidates(
 
     search = q.strip() if q else ""
     if search:
-        condition = _search_condition(job_a, job_b, f"%{search}%")
+        pattern = f"%{search}%"
+        company_ids = select(Company.id).where(Company.name.ilike(pattern))
+        posting_job_ids = select(JobPosting.job_id).where(
+            or_(
+                JobPosting.title_raw.ilike(pattern),
+                JobPosting.company_raw.ilike(pattern),
+                JobPosting.location_raw.ilike(pattern),
+            )
+        )
+        condition = or_(
+            job_a.canonical_title.ilike(pattern),
+            job_a.company_name_raw.ilike(pattern),
+            job_a.location_text.ilike(pattern),
+            job_a.company_id.in_(company_ids),
+            job_a.id.in_(posting_job_ids),
+            job_b.canonical_title.ilike(pattern),
+            job_b.company_name_raw.ilike(pattern),
+            job_b.location_text.ilike(pattern),
+            job_b.company_id.in_(company_ids),
+            job_b.id.in_(posting_job_ids),
+        )
         query = query.where(condition)
         count_query = count_query.where(condition)
 
