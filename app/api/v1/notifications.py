@@ -190,16 +190,19 @@ def notification_inbox(
 @router.post("/inbox/read-all", response_model=MarkNotificationsReadResponse)
 def mark_all_dashboard_notifications_read(session: SessionDep) -> MarkNotificationsReadResponse:
     now = datetime.now(UTC)
-    result = session.execute(
-        update(Notification)
-        .where(
-            Notification.channel == NotificationChannel.DASHBOARD,
-            Notification.read_at.is_(None),
+    updated_ids = list(
+        session.scalars(
+            update(Notification)
+            .where(
+                Notification.channel == NotificationChannel.DASHBOARD,
+                Notification.read_at.is_(None),
+            )
+            .values(read_at=now)
+            .returning(Notification.id)
         )
-        .values(read_at=now)
     )
     session.commit()
-    return MarkNotificationsReadResponse(updated=int(result.rowcount or 0), read_at=now)
+    return MarkNotificationsReadResponse(updated=len(updated_ids), read_at=now)
 
 
 @router.post("/{notification_id}/read", response_model=MarkNotificationsReadResponse)
