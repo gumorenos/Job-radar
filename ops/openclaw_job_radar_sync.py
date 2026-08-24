@@ -50,7 +50,9 @@ def extract_vacancies(document: Any) -> list[dict[str, Any]]:
             value = document.get(key)
             if isinstance(value, list):
                 return [item for item in value if isinstance(item, dict)]
-    raise ValueError("Processed vacancy JSON must be a list or contain vacancies/items/jobs/results.")
+    raise ValueError(
+        "Processed vacancy JSON must be a list or contain vacancies/items/jobs/results."
+    )
 
 
 def _text(value: Any, *, limit: int | None = None) -> str | None:
@@ -112,7 +114,11 @@ def _iso_datetime(value: Any) -> str | None:
     return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def build_ingestion_payload(record: dict[str, Any], source_file: Path, index: int) -> dict[str, Any]:
+def build_ingestion_payload(
+    record: dict[str, Any],
+    source_file: Path,
+    index: int,
+) -> dict[str, Any]:
     final_url = _http_url(record.get("url_final"))
     source_url = _http_url(record.get("url"))
     published_at = _iso_datetime(record.get("published_at"))
@@ -126,7 +132,13 @@ def build_ingestion_payload(record: dict[str, Any], source_file: Path, index: in
         "url": final_url or source_url,
     }
 
-    for key, limit in (("country", 100), ("city", 120), ("work_mode", 80), ("seniority", 120)):
+    explicit_fields = (
+        ("country", 100),
+        ("city", 120),
+        ("work_mode", 80),
+        ("seniority", 120),
+    )
+    for key, limit in explicit_fields:
         value = _text(record.get(key), limit=limit)
         if value is not None:
             job[key] = value
@@ -157,8 +169,10 @@ def build_ingestion_payload(record: dict[str, Any], source_file: Path, index: in
     external_id = _text(record.get("external_id"), limit=300)
     captured_at = _iso_datetime(record.get("captured_at"))
     if captured_at is None:
-        captured_at = datetime.fromtimestamp(source_file.stat().st_mtime, UTC).isoformat().replace(
-            "+00:00", "Z"
+        captured_at = (
+            datetime.fromtimestamp(source_file.stat().st_mtime, UTC)
+            .isoformat()
+            .replace("+00:00", "Z")
         )
 
     payload: dict[str, Any] = {
@@ -174,7 +188,11 @@ def build_ingestion_payload(record: dict[str, Any], source_file: Path, index: in
     return payload
 
 
-def event_idempotency_key(source_file: Path, index: int, record: dict[str, Any]) -> str:
+def event_idempotency_key(
+    source_file: Path,
+    index: int,
+    record: dict[str, Any],
+) -> str:
     canonical = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     identity = f"job-radar:openclaw:{source_file.name}:{index}:{digest}"
@@ -193,13 +211,19 @@ def load_state(path: Path) -> dict[str, Any]:
 def save_state(path: Path, state: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(path.suffix + ".tmp")
-    temp.write_text(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    serialized = json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    temp.write_text(serialized, encoding="utf-8")
     os.chmod(temp, 0o600)
     temp.replace(path)
     os.chmod(path, 0o600)
 
 
-def post_ingestion(api_url: str, api_key: str, idempotency_key: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
+def post_ingestion(
+    api_url: str,
+    api_key: str,
+    idempotency_key: str,
+    payload: dict[str, Any],
+) -> tuple[int, dict[str, Any] | None]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         api_url,
@@ -220,7 +244,12 @@ def post_ingestion(api_url: str, api_key: str, idempotency_key: str, payload: di
         return exc.code, None
 
 
-def send_with_retries(api_url: str, api_key: str, key: str, payload: dict[str, Any]) -> tuple[int | None, dict[str, Any] | None, str | None]:
+def send_with_retries(
+    api_url: str,
+    api_key: str,
+    key: str,
+    payload: dict[str, Any],
+) -> tuple[int | None, dict[str, Any] | None, str | None]:
     attempts = 1 + len(TRANSIENT_RETRY_DELAYS)
     for attempt in range(attempts):
         try:
@@ -255,13 +284,24 @@ def _parse_not_before(value: str | None) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-def candidate_files(tracking_dir: Path, explicit_file: Path | None, not_before: datetime | None) -> list[Path]:
+def candidate_files(
+    tracking_dir: Path,
+    explicit_file: Path | None,
+    not_before: datetime | None,
+) -> list[Path]:
     if explicit_file is not None:
         return [explicit_file]
-    files = sorted(tracking_dir.glob("processed-vacancies-*.json"), key=lambda path: (path.stat().st_mtime, path.name))
+    files = sorted(
+        tracking_dir.glob("processed-vacancies-*.json"),
+        key=lambda path: (path.stat().st_mtime, path.name),
+    )
     if not_before is None:
         return files
-    return [path for path in files if datetime.fromtimestamp(path.stat().st_mtime, UTC) >= not_before]
+    return [
+        path
+        for path in files
+        if datetime.fromtimestamp(path.stat().st_mtime, UTC) >= not_before
+    ]
 
 
 def run_sync(
@@ -289,14 +329,20 @@ def run_sync(
         for index, record in enumerate(vacancies):
             key = event_idempotency_key(source_file, index, record)
             previous = events.get(key)
-            if isinstance(previous, dict) and previous.get("status") in {"accepted", "terminal_error"}:
+            if isinstance(previous, dict) and previous.get("status") in {
+                "accepted",
+                "terminal_error",
+            }:
                 skipped += 1
                 continue
 
             payload = build_ingestion_payload(record, source_file, index)
             title = _text(payload["job"].get("title"), limit=80) or "(sin título)"
             if dry_run:
-                print(f"DRY_RUN file={source_file.name} index={index} title={title!r} key={key}")
+                print(
+                    f"DRY_RUN file={source_file.name} index={index} "
+                    f"title={title!r} key={key}"
+                )
                 continue
 
             status, response, error = send_with_retries(api_url, api_key, key, payload)
@@ -316,7 +362,8 @@ def run_sync(
                 print(
                     "SYNC_OK "
                     f"file={source_file.name} index={index} title={title!r} "
-                    f"status={response.get('status')} ingestion_id={response.get('ingestion_id')}"
+                    f"status={response.get('status')} "
+                    f"ingestion_id={response.get('ingestion_id')}"
                 )
                 continue
 
@@ -332,7 +379,8 @@ def run_sync(
                 save_state(state_path, state)
                 terminal += 1
                 print(
-                    f"SYNC_TERMINAL file={source_file.name} index={index} title={title!r} http={status}",
+                    "SYNC_TERMINAL "
+                    f"file={source_file.name} index={index} title={title!r} http={status}",
                     file=sys.stderr,
                 )
                 if status == 401:
@@ -341,20 +389,46 @@ def run_sync(
 
             failed += 1
             print(
-                f"SYNC_RETRY_LATER file={source_file.name} index={index} title={title!r} http={status} error={error}",
+                "SYNC_RETRY_LATER "
+                f"file={source_file.name} index={index} title={title!r} "
+                f"http={status} error={error}",
                 file=sys.stderr,
             )
 
-    print(f"SYNC_SUMMARY accepted={accepted} skipped={skipped} failed={failed} terminal={terminal} files={len(files)}")
+    print(
+        "SYNC_SUMMARY "
+        f"accepted={accepted} skipped={skipped} failed={failed} "
+        f"terminal={terminal} files={len(files)}"
+    )
     return 1 if failed or terminal else 0
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Sync processed OpenClaw vacancies into Job Radar.")
-    parser.add_argument("--env", type=Path, required=True, help="Dedicated Job Radar bridge env file.")
-    parser.add_argument("--file", type=Path, help="Process exactly one JSON file, bypassing cutoff scan.")
-    parser.add_argument("--dry-run", action="store_true", help="Map events without sending HTTP requests.")
-    parser.add_argument("--max-files", type=int, default=20, help="Maximum newest candidate files per run.")
+    parser = argparse.ArgumentParser(
+        description="Sync processed OpenClaw vacancies into Job Radar."
+    )
+    parser.add_argument(
+        "--env",
+        type=Path,
+        required=True,
+        help="Dedicated Job Radar bridge env file.",
+    )
+    parser.add_argument(
+        "--file",
+        type=Path,
+        help="Process exactly one JSON file, bypassing cutoff scan.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Map events without sending HTTP requests.",
+    )
+    parser.add_argument(
+        "--max-files",
+        type=int,
+        default=20,
+        help="Maximum newest candidate files per run.",
+    )
     return parser.parse_args()
 
 
