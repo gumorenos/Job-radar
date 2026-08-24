@@ -110,7 +110,10 @@ def test_duplicate_search_covers_job_normalized_company_and_posting_fields() -> 
         job_a = session.get(Job, title_row.job_a_id)
         assert job_a is not None
 
-        company = Company(name="Normalized People Holdings", normalized_name="normalized people holdings")
+        company = Company(
+            name="Normalized People Holdings",
+            normalized_name="normalized people holdings",
+        )
         session.add(company)
         session.flush()
         job_a.company_id = company.id
