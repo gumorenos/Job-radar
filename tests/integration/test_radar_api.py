@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event, text
+from sqlalchemy import event, select, text
 
 from app.db.enums import (
     Classification,
@@ -140,6 +140,34 @@ def test_radar_total_is_exact_even_when_items_are_limited() -> None:
     assert response.status_code == 200
     assert response.json()["total"] == 3
     assert len(response.json()["items"]) == 1
+
+
+def test_radar_search_matches_normalized_company_and_source_posting_fields() -> None:
+    job = _create_job("HR Business Partner", "Source Alias", "https://example.com/jobs/search")
+
+    with get_session_factory()() as session:
+        job_row = session.get(Job, job.id)
+        assert job_row is not None
+        assert job_row.company_id is not None
+        company = session.get(Company, job_row.company_id)
+        posting = session.scalar(select(JobPosting).where(JobPosting.job_id == job.id))
+        assert company is not None
+        assert posting is not None
+        company.name = "Canonical People Holdings"
+        posting.title_raw = "People Insights Partner"
+        posting.location_raw = "Remote LATAM"
+        session.commit()
+
+    with TestClient(app) as client:
+        by_company = client.get("/api/v1/radar/jobs?view=review&q=canonical")
+        by_source_title = client.get("/api/v1/radar/jobs?view=review&q=insights")
+        by_source_location = client.get("/api/v1/radar/jobs?view=review&q=latam")
+
+    for response in (by_company, by_source_title, by_source_location):
+        assert response.status_code == 200
+        assert response.json()["total"] == 1
+        assert response.json()["items"][0]["id"] == str(job.id)
+    assert by_company.json()["items"][0]["company"] == "Canonical People Holdings"
 
 
 def test_radar_summary_query_count_does_not_grow_with_number_of_jobs() -> None:

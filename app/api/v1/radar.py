@@ -327,11 +327,25 @@ def list_radar_jobs(
     query = _active_jobs_query().order_by(Job.last_seen_at.desc())
     if q and q.strip():
         pattern = f"%{q.strip()}%"
+        normalized_company_match = Job.company_id.in_(
+            select(Company.id).where(Company.name.ilike(pattern))
+        )
+        source_posting_match = Job.id.in_(
+            select(JobPosting.job_id).where(
+                or_(
+                    JobPosting.title_raw.ilike(pattern),
+                    JobPosting.company_raw.ilike(pattern),
+                    JobPosting.location_raw.ilike(pattern),
+                )
+            )
+        )
         query = query.where(
             or_(
                 Job.canonical_title.ilike(pattern),
                 Job.company_name_raw.ilike(pattern),
                 Job.location_text.ilike(pattern),
+                normalized_company_match,
+                source_posting_match,
             )
         )
 
