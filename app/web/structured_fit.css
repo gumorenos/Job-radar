@@ -1,0 +1,118 @@
+.structured-fit-section {
+  display: grid;
+  gap: 9px;
+}
+
+.structured-fit-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.structured-fit-heading h3 {
+  margin: 0;
+}
+
+.structured-fit-heading > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.structured-fit-row {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.structured-fit-row-heading,
+.structured-skill-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.structured-fit-row-heading > strong {
+  font-size: 12px;
+}
+
+.structured-fit-row > p {
+  color: #4d5667;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.fit-status {
+  display: inline-flex;
+  width: max-content;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 9px;
+  font-weight: 780;
+}
+
+.fit-status.meets {
+  color: var(--high);
+  background: #eaf8f2;
+}
+
+.fit-status.partial {
+  color: var(--review);
+  background: #fff4df;
+}
+
+.fit-status.transferable {
+  color: #3658a8;
+  background: #eef3ff;
+}
+
+.fit-status.missing,
+.fit-status.exclusion {
+  color: #9d2f2f;
+  background: #fff0f0;
+}
+
+.fit-status.unknown {
+  color: var(--discarded);
+  background: #f0f2f5;
+}
+
+.structured-skill-list {
+  display: grid;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.structured-skill-item {
+  min-height: 25px;
+  font-size: 11px;
+}
+
+.structured-skill-item + .structured-skill-item {
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+}
+
+.structured-fit-note {
+  padding: 8px 9px;
+  border-radius: 7px;
+  background: #fff8e8;
+  color: #76501a;
+  font-size: 10px !important;
+}
+
+@media (max-width: 760px) {
+  .structured-fit-row-heading,
+  .structured-skill-item {
+    align-items: flex-start;
+  }
+}
