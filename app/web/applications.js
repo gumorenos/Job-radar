@@ -7,7 +7,26 @@ const applicationStageLabels = {
 };
 
 let applicationStage = "TO_APPLY";
+let applicationSearchTimer = null;
 const applicationsList = document.getElementById("applicationsList");
+const applicationStageGrid = document.querySelector(".application-stages");
+const applicationSearchToolbar = document.createElement("div");
+applicationSearchToolbar.className = "application-search-toolbar";
+applicationSearchToolbar.innerHTML = `
+  <label class="application-search-field">
+    <span>Buscar en postulaciones</span>
+    <input
+      id="applicationSearch"
+      type="search"
+      maxlength="200"
+      placeholder="Puesto, empresa, ubicación o notas"
+      autocomplete="off"
+    >
+  </label>
+  <span class="application-search-meta" id="applicationSearchMeta" aria-live="polite"></span>`;
+applicationStageGrid.insertAdjacentElement("afterend", applicationSearchToolbar);
+const applicationSearch = document.getElementById("applicationSearch");
+const applicationSearchMeta = document.getElementById("applicationSearchMeta");
 
 async function applicationRequest(path, options = {}) {
   const headers = { Accept: "application/json", ...(options.headers || {}) };
@@ -48,10 +67,13 @@ function notesStateLabel(notes) {
 
 function renderApplications(items) {
   if (!items.length) {
+    const search = applicationSearch.value.trim();
     applicationsList.innerHTML = `
       <div class="empty-state panel-empty">
-        <h3>Sin ${escapeHtml(applicationStageLabels[applicationStage].toLowerCase())}</h3>
-        <p>Las oportunidades que decidas perseguir desde Radar aparecerán aquí.</p>
+        <h3>${search ? "Sin resultados" : `Sin ${escapeHtml(applicationStageLabels[applicationStage].toLowerCase())}`}</h3>
+        <p>${search
+          ? `No hay postulaciones en esta etapa que coincidan con “${escapeHtml(search)}”.`
+          : "Las oportunidades que decidas perseguir desde Radar aparecerán aquí."}</p>
       </div>`;
     return;
   }
@@ -120,10 +142,18 @@ async function loadApplicationSummary() {
 
 async function loadApplicationList() {
   applicationsList.innerHTML = `<div class="applications-loading">Cargando postulaciones…</div>`;
+  const params = new URLSearchParams({ stage: applicationStage, limit: "100" });
+  const search = applicationSearch.value.trim();
+  if (search) params.set("q", search);
+
   try {
-    const result = await applicationRequest(`/api/v1/applications?stage=${applicationStage}`);
+    const result = await applicationRequest(`/api/v1/applications?${params}`);
+    applicationSearchMeta.textContent = search
+      ? `${result.total} ${result.total === 1 ? "resultado" : "resultados"}`
+      : "";
     renderApplications(result.items);
   } catch (error) {
+    applicationSearchMeta.textContent = "";
     applicationsList.innerHTML = `
       <div class="empty-state panel-empty error-state">
         <h3>No se pudieron cargar las postulaciones</h3>
@@ -236,6 +266,15 @@ async function syncRadarApplicationAction() {
 
 document.querySelectorAll("[data-application-stage]").forEach((button) => {
   button.addEventListener("click", () => setApplicationStage(button.dataset.applicationStage));
+});
+
+applicationSearch.addEventListener("input", () => {
+  clearTimeout(applicationSearchTimer);
+  applicationSearchTimer = setTimeout(loadApplicationList, 250);
+});
+applicationSearch.addEventListener("search", () => {
+  clearTimeout(applicationSearchTimer);
+  loadApplicationList();
 });
 
 const applicationDetailObserver = new MutationObserver(() => {
