@@ -109,7 +109,9 @@ def test_material_rediscovery_with_same_classification_does_not_repeat_notificat
 
     with get_session_factory()() as session:
         analyses = list(session.scalars(select(MatchAnalysis).order_by(MatchAnalysis.created_at)))
-        notifications = list(session.scalars(select(Notification).order_by(Notification.created_at)))
+        notifications = list(
+            session.scalars(select(Notification).order_by(Notification.created_at))
+        )
 
         assert len(analyses) == 2
         assert all(item.classification == Classification.HIGH_PRIORITY for item in analyses)
@@ -138,7 +140,9 @@ def test_classification_transition_still_creates_new_notifications() -> None:
 
     with get_session_factory()() as session:
         analyses = list(session.scalars(select(MatchAnalysis).order_by(MatchAnalysis.created_at)))
-        notifications = list(session.scalars(select(Notification).order_by(Notification.created_at)))
+        notifications = list(
+            session.scalars(select(Notification).order_by(Notification.created_at))
+        )
 
         assert len(analyses) == 2
         assert analyses[0].classification == Classification.HIGH_PRIORITY
@@ -150,5 +154,11 @@ def test_classification_transition_still_creates_new_notifications() -> None:
         ]
         assert len(latest_notifications) == 2
         by_channel = {item.channel: item for item in latest_notifications}
-        assert by_channel[NotificationChannel.DASHBOARD].notification_type == NotificationType.IMMEDIATE
-        assert by_channel[NotificationChannel.TELEGRAM].notification_type == NotificationType.DAILY_REVIEW
+        assert (
+            by_channel[NotificationChannel.DASHBOARD].notification_type
+            == NotificationType.IMMEDIATE
+        )
+        assert (
+            by_channel[NotificationChannel.TELEGRAM].notification_type
+            == NotificationType.DAILY_REVIEW
+        )
