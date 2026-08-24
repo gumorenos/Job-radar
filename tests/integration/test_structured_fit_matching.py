@@ -145,6 +145,7 @@ def test_five_vs_seven_years_forces_review_without_discarding_strong_fit() -> No
         assert experience["status"] == "PARTIALLY"
         assert degree["status"] == "MEETS"
         assert skills["status"] == "TRANSFERABLE"
+        assert analysis.explanation is not None
         assert "brecha" in analysis.explanation.lower()
 
 
