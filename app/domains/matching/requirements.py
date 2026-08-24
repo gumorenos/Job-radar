@@ -124,24 +124,34 @@ def assess_experience(
     if candidate_years is None:
         return RequirementAssessment(
             RequirementStatus.UNKNOWN,
-            f"La vacante pide {required_years:g} años; falta registrar la experiencia del perfil.",
+            (
+                f"La vacante pide {required_years:g} años; falta registrar la experiencia "
+                "del perfil."
+            ),
         )
     if candidate_years >= required_years:
         return RequirementAssessment(
             RequirementStatus.MEETS,
-            f"Experiencia: cumple {candidate_years:g} años frente a {required_years:g} requeridos.",
+            (
+                f"Experiencia: cumple {candidate_years:g} años frente a "
+                f"{required_years:g} requeridos."
+            ),
         )
 
     gap = required_years - candidate_years
+    gap_message = (
+        f"Experiencia: {candidate_years:g} años frente a {required_years:g} requeridos; "
+        f"brecha de {gap:g} años."
+    )
     if gap <= Decimal("2"):
         return RequirementAssessment(
             RequirementStatus.PARTIALLY,
-            f"Experiencia: {candidate_years:g} años frente a {required_years:g} requeridos; brecha de {gap:g} años.",
+            gap_message,
             requires_review=True,
         )
     return RequirementAssessment(
         RequirementStatus.DOES_NOT_MEET,
-        f"Experiencia: {candidate_years:g} años frente a {required_years:g} requeridos; brecha de {gap:g} años.",
+        gap_message,
         requires_review=True,
     )
 
@@ -160,7 +170,10 @@ def assess_degree(
     if not candidates:
         return RequirementAssessment(
             RequirementStatus.UNKNOWN,
-            "La vacante publica un requisito de carrera, pero el perfil aún no tiene grados registrados.",
+            (
+                "La vacante publica un requisito de carrera, pero el perfil aún no tiene "
+                "grados registrados."
+            ),
         )
 
     for candidate_label, candidate_key in candidates:
@@ -174,7 +187,10 @@ def assess_degree(
     requested = ", ".join(label for label, _ in required[:3])
     return RequirementAssessment(
         RequirementStatus.POSSIBLE_EXCLUSION,
-        f"Carrera/grado: no se observa coincidencia directa con el requisito publicado ({requested}).",
+        (
+            "Carrera/grado: no se observa coincidencia directa con el requisito publicado "
+            f"({requested})."
+        ),
         requires_review=True,
     )
 
@@ -224,7 +240,10 @@ def assess_skills(
         return (
             RequirementAssessment(
                 RequirementStatus.UNKNOWN,
-                "La vacante publica skills requeridos, pero el perfil aún no tiene skills registrados.",
+                (
+                    "La vacante publica skills requeridos, pero el perfil aún no tiene skills "
+                    "registrados."
+                ),
             ),
             (),
         )
@@ -242,7 +261,10 @@ def assess_skills(
     elif statuses.issubset({RequirementStatus.MEETS, RequirementStatus.TRANSFERABLE}):
         assessment = RequirementAssessment(
             RequirementStatus.TRANSFERABLE,
-            "Skills: los requisitos están cubiertos entre evidencia directa y capacidades transferibles.",
+            (
+                "Skills: los requisitos están cubiertos entre evidencia directa y capacidades "
+                "transferibles."
+            ),
         )
     elif RequirementStatus.MEETS in statuses or RequirementStatus.TRANSFERABLE in statuses:
         assessment = RequirementAssessment(
