@@ -12,7 +12,9 @@ _CONTENT_TYPE_TO_SUFFIX = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
     "text/plain": ".txt",
 }
-_SUFFIX_TO_CONTENT_TYPE = {suffix: media_type for media_type, suffix in _CONTENT_TYPE_TO_SUFFIX.items()}
+_SUFFIX_TO_CONTENT_TYPE = {
+    suffix: media_type for media_type, suffix in _CONTENT_TYPE_TO_SUFFIX.items()
+}
 
 
 class CvFileError(ValueError):
