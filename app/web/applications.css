@@ -186,6 +186,18 @@
 }
 .application-notes-status.error { color: #a12828; }
 
+.application-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 0 4px;
+}
+.application-load-more span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .detail-actions button { min-height: 36px; }
 
 @media (max-width: 760px) {
@@ -196,4 +208,6 @@
   .application-stage-control { min-width: 0; width: 100%; }
   .application-notes-actions { align-items: stretch; flex-direction: column; }
   .application-notes-actions .secondary { width: 100%; }
+  .application-load-more { align-items: stretch; flex-direction: column; text-align: center; }
+  .application-load-more .secondary { width: 100%; }
 }
