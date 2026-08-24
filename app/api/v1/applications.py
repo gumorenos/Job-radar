@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.enums import ApplicationStage
@@ -120,6 +120,7 @@ def application_summary(session: SessionDep) -> ApplicationSummary:
 def list_applications(
     session: SessionDep,
     stage: ApplicationStage | None = None,
+    q: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=100, ge=1, le=200),
 ) -> ApplicationList:
     query = (
@@ -129,10 +130,27 @@ def list_applications(
         .order_by(JobApplication.updated_at.desc())
         .limit(limit)
     )
-    count_query = select(func.count(JobApplication.id))
+    count_query = (
+        select(func.count(JobApplication.id))
+        .join(Job, JobApplication.job_id == Job.id)
+        .outerjoin(Company, Job.company_id == Company.id)
+    )
     if stage is not None:
         query = query.where(JobApplication.stage == stage)
         count_query = count_query.where(JobApplication.stage == stage)
+
+    search = q.strip() if q else ""
+    if search:
+        pattern = f"%{search}%"
+        condition = or_(
+            Job.canonical_title.ilike(pattern),
+            Job.company_name_raw.ilike(pattern),
+            Company.name.ilike(pattern),
+            Job.location_text.ilike(pattern),
+            JobApplication.notes.ilike(pattern),
+        )
+        query = query.where(condition)
+        count_query = count_query.where(condition)
 
     rows = session.execute(query).all()
     total = int(session.scalar(count_query) or 0)
