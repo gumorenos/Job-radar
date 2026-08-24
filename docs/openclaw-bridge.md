@@ -12,7 +12,7 @@ AgentMail -> processed-vacancies-*.json -> existing cloud sync -> Notion/Supabas
                                        -> Job Radar bridge -> localhost API
 ```
 
-The existing pipeline has no configurable generic HTTP sink. Rather than modify its parser, Notion writer or poller, Job Radar ships a standalone stdlib Python bridge. Deployment adds an independent cron entry. Existing vacancy scripts remain byte-for-byte untouched.
+The existing pipeline has no configurable generic HTTP sink. Rather than modify its parser, Notion writer or poller, Job Radar ships a standalone stdlib Python bridge. Existing vacancy scripts remain byte-for-byte untouched.
 
 ## Runtime files
 
@@ -22,13 +22,13 @@ The installer deploys:
 - dedicated secret/config: `/home/ubuntu/.openclaw/workspace/config/job-radar.env` (`0600`)
 - state: `tracking/agentmail-vacancies/job-radar-sync-state.json` (`0600`)
 - log: `tracking/agentmail-vacancies/job-radar-sync.log`
-- crontab backup: `tracking/job-radar-bridge-backups/crontab-<timestamp>.txt`
+- crontab backups: `tracking/job-radar-bridge-backups/`
 
 The secret file receives only the Job Radar API key and bridge settings. It does not copy PostgreSQL credentials or the complete production env.
 
 ## Activation cutoff
 
-Installation writes `JOB_RADAR_SYNC_NOT_BEFORE` using the activation time. Normal cron scans only `processed-vacancies-*.json` files at or after this cutoff. This prevents an accidental historical import during burn-in.
+First installation writes `JOB_RADAR_SYNC_NOT_BEFORE` using the install time. Reinstall preserves that original cutoff. Normal cron scans only `processed-vacancies-*.json` files at or after the cutoff, preventing accidental historical import during burn-in.
 
 An explicit `--file` is allowed for controlled QA and bypasses the cutoff.
 
@@ -63,17 +63,36 @@ The same file/row/payload therefore reuses the exact key for retries. A later pr
 - one bridge failure does not modify or roll back the existing Notion/Supabase/Fast.io path.
 - a nonzero bridge cron exit is visible in the dedicated bridge log.
 
-## Deployment
+## Staged deployment
 
-After the bridge code is merged and the exact production commit is deployed to `/srv/job-radar/app`:
+The bridge is deliberately installed **disabled**. This prevents automatic traffic before QA has proved the mapping and canary path.
+
+After the bridge code is merged and the exact production commit is present at `/srv/job-radar/app`:
 
 ```bash
 bash ops/install_openclaw_bridge.sh /srv/job-radar/app/.env.production
 ```
 
-The installer is idempotent for its managed cron marker and backs up the current crontab first. It does not restart the OpenClaw gateway.
+This command:
 
-Rollback:
+- deploys the bridge script;
+- creates/updates the dedicated mode-0600 secret file;
+- records the activation cutoff;
+- backs up the existing crontab;
+- does **not** add or change the bridge cron on first install;
+- does not restart the OpenClaw gateway.
+
+Run dry-run and explicit synthetic canary QA while the automatic bridge remains disabled. Only after that gate passes, enable real burn-in explicitly:
+
+```bash
+bash ops/enable_openclaw_bridge.sh
+```
+
+The enable script validates the deployed script, dedicated env permissions, localhost API URL and absence of PostgreSQL credentials, backs up crontab again, then creates exactly one managed cron entry. Existing vacancy cron entries are preserved.
+
+Re-running the installer after an already-enabled deployment preserves the managed cron instead of disabling it unexpectedly.
+
+## Rollback
 
 ```bash
 bash ops/uninstall_openclaw_bridge.sh
