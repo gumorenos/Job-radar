@@ -8,11 +8,10 @@ OPENCLAW_SCRIPT="$OPENCLAW_ROOT/scripts/job_radar_sync.py"
 OPENCLAW_ENV="$OPENCLAW_ROOT/config/job-radar.env"
 TRACKING_DIR="$OPENCLAW_ROOT/tracking/agentmail-vacancies"
 STATE_PATH="$TRACKING_DIR/job-radar-sync-state.json"
-LOG_PATH="$TRACKING_DIR/job-radar-sync.log"
 MARKER="# JOB_RADAR_BRIDGE_MANAGED"
 
 if [[ "$OPENCLAW_ROOT" == /home/ubuntu/* && "$(id -un)" != "ubuntu" ]]; then
-  echo "Run the bridge installer as user ubuntu so it updates the correct crontab." >&2
+  echo "Run the bridge installer as user ubuntu so it uses the correct OpenClaw workspace." >&2
   exit 1
 fi
 
@@ -69,15 +68,14 @@ backup_path="$backup_dir/crontab-$(date -u +%Y%m%dT%H%M%SZ).txt"
 crontab -l >"$backup_path" 2>/dev/null || true
 chmod 0600 "$backup_path"
 
-temp_cron="$(mktemp)"
-trap 'rm -f "$temp_cron"' EXIT
-{
-  crontab -l 2>/dev/null | grep -Fv "$MARKER" || true
-  printf '%s\n' "* * * * * /usr/bin/python3 $OPENCLAW_SCRIPT --env $OPENCLAW_ENV >> $LOG_PATH 2>&1 $MARKER"
-} >"$temp_cron"
-crontab "$temp_cron"
+if crontab -l 2>/dev/null | grep -Fq "$MARKER"; then
+  cron_status="already enabled; existing managed cron entry preserved"
+else
+  cron_status="disabled; run ops/enable_openclaw_bridge.sh only after canary QA"
+fi
 
-printf 'Installed Job Radar OpenClaw bridge.\n'
+printf 'Installed Job Radar OpenClaw bridge files without changing crontab.\n'
 printf 'Cutoff: %s\n' "$not_before"
 printf 'Crontab backup: %s\n' "$backup_path"
+printf 'Bridge cron: %s\n' "$cron_status"
 printf 'Existing vacancy scripts and Notion sync were not modified.\n'
