@@ -13,7 +13,10 @@ from app.db.models.mixins import TimestampMixin
 
 class Notification(TimestampMixin, Base):
     __tablename__ = "notifications"
-    __table_args__ = (Index("ix_notifications_status_scheduled", "status", "scheduled_for"),)
+    __table_args__ = (
+        Index("ix_notifications_status_scheduled", "status", "scheduled_for"),
+        Index("ix_notifications_channel_read_created", "channel", "read_at", "created_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     job_id: Mapped[UUID] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
@@ -28,6 +31,7 @@ class Notification(TimestampMixin, Base):
     )
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[NotificationStatus] = mapped_column(
         Enum(NotificationStatus, native_enum=False, length=24),
         nullable=False,
