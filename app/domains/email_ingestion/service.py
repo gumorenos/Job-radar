@@ -419,10 +419,12 @@ def submit_email_extraction(
                 ingestion_key,
                 raw_payload=ingestion_raw,
             )
-        except IdempotencyConflictError:
+        except IdempotencyConflictError as exc:
             row = session.get(EmailExtractedPosting, row.id)
             if row is None:
-                raise RuntimeError("Email extraction row disappeared during processing.")
+                raise RuntimeError(
+                    "Email extraction row disappeared during processing."
+                ) from exc
             row.status = IngestionStatus.FAILED
             row.error_code = "INGESTION_IDEMPOTENCY_CONFLICT"
             session.commit()
