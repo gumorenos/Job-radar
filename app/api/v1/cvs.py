@@ -257,7 +257,10 @@ async def upload_cv_file(
                     continue
                 size += len(chunk)
                 if size > MAX_CV_FILE_BYTES:
-                    raise HTTPException(status_code=413, detail="El archivo supera el límite de 10 MB.")
+                    raise HTTPException(
+                        status_code=413,
+                        detail="El archivo supera el límite de 10 MB.",
+                    )
                 handle.write(chunk)
         try:
             validate_stored_file(temp_path, media_type)
