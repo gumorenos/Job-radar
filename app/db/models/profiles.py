@@ -34,6 +34,10 @@ class CandidateProfile(TimestampMixin, Base):
     remote_salary_multiplier: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), nullable=False, default=Decimal("1.10")
     )
+    experience_years: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    degrees: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    skills: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    transferable_skills: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     target_locations: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     target_roles: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     target_areas: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
