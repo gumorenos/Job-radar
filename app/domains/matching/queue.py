@@ -55,20 +55,19 @@ def ensure_pending_job_analyses(
     if not unique_job_ids:
         return AnalysisQueueBatchResult(tasks=(), created=0, reused_pending=0)
 
-    pending_by_job = {
-        task.entity_id: task
-        for task in session.scalars(
-            select(ProcessingTask)
-            .where(
-                ProcessingTask.task_type == TaskType.ANALYZE_MATCH,
-                ProcessingTask.entity_type == "job",
-                ProcessingTask.entity_id.in_(unique_job_ids),
-                ProcessingTask.status == TaskStatus.PENDING,
-            )
-            .order_by(ProcessingTask.created_at.asc())
+    pending_by_job: dict[UUID, ProcessingTask] = {}
+    pending_tasks = session.scalars(
+        select(ProcessingTask)
+        .where(
+            ProcessingTask.task_type == TaskType.ANALYZE_MATCH,
+            ProcessingTask.entity_type == "job",
+            ProcessingTask.entity_id.in_(unique_job_ids),
+            ProcessingTask.status == TaskStatus.PENDING,
         )
-        if task.entity_id not in locals().get("pending_by_job", {})
-    }
+        .order_by(ProcessingTask.created_at.asc())
+    )
+    for task in pending_tasks:
+        pending_by_job.setdefault(task.entity_id, task)
 
     tasks: list[ProcessingTask] = []
     created = 0
