@@ -6,6 +6,8 @@ Este archivo mantiene solo gates operativos pendientes. OpenClaw actúa como QA/
 
 Los antiguos QA-001 a QA-006 quedaron absorbidos por el QA consolidado del PR #14 (`docs/qa-core-completion.md`). El núcleo v1 pasó finalmente en Oracle ARM64 y navegador real sobre HEAD `1a84ac19a012561b83c98ef9a43314cd2170fb2a` y fue mergeado a `main` mediante commit `585d8739f8f49b52b3d928fcdc0f7da5a1cfe6f0`.
 
+Después de ese gate se integraron mediante PRs y CI varias mejoras del producto —operación de producción, OpenClaw bridge, optimizaciones de Radar, CV file storage, email inbound foundation, notification center, structured fit/rules-v5, decision brief, feedback insights, suppression de alertas de reanálisis sin cambio y reanálisis explícito de oportunidades—. Estas mejoras **todavía no han sido desplegadas a Job Radar producción**. El rollout debe usar y validar el `main` exacto vigente en ese momento, no el antiguo HEAD del QA de núcleo.
+
 El preflight inicial de producción detectó que `127.0.0.1:8000` pertenece a `oraculo-prod-api-1`; no debe tocarse. Job Radar selecciona `127.0.0.1:8010` como puerto candidato y debe revalidarlo justo antes del deploy. PostgreSQL `127.0.0.1:5432` estaba libre. El `cloudflared` systemd principal corre por token y no tiene ingress config local; su exposición pública queda separada del deploy localhost-only.
 
 ---
@@ -17,15 +19,18 @@ El preflight inicial de producción detectó que `127.0.0.1:8000` pertenece a `o
 **Runbook:** `docs/deployment.md`  
 **Contrato OpenClaw:** `docs/openclaw-ingestion.md`
 
-### Gate A — preflight final
+### Gate A — preflight final + smoke del `main` vigente
 
 Antes de modificar producción:
 
-- confirmar exacto `main` e imagen GHCR ARM64;
+- confirmar SHA exacto de `main` e imagen GHCR ARM64 correspondiente;
+- confirmar CI verde del exacto commit que se desplegará;
 - ejecutar `bash ops/preflight.sh .env.production`;
 - `127.0.0.1:8010` y `127.0.0.1:5432` deben estar libres salvo servicios Job Radar ya existentes;
 - servicios ajenos deben seguir sanos;
-- no tocar `oraculo-prod-api-1`, loan calculator, OpenClaw ni cloudflared.
+- no tocar `oraculo-prod-api-1`, loan calculator, OpenClaw ni cloudflared;
+- sobre un entorno QA/localhost del mismo commit, hacer smoke de navegador desktop/mobile: Radar, detalle/structured fit/reglas/CV, Postulaciones, CVs, Configuración, Correcciones del Radar, centro de notificaciones y ausencia de errores de consola/overflow;
+- verificar que `Reanalizar oportunidades` está deshabilitado con cambios sin guardar y que, tras guardar, programa tareas sin duplicar una ya pendiente.
 
 ### Gate B — deploy localhost-only
 
@@ -48,6 +53,7 @@ Con Job Radar aún localhost-only:
 4. Verificar 202, procesamiento completo, Radar y explicación.
 5. Repetir exactamente la misma request con mismo idempotency key: `already_accepted`, sin duplicados.
 6. Enviar una segunda observación con nueva key y comprobar dedupe/sighting.
+7. Reanalizar sin modificar la clasificación y confirmar que no se repiten alertas; luego probar una transición controlada y confirmar que la nueva decisión sí queda observable.
 
 ### Gate D — exposición dashboard
 
@@ -57,4 +63,4 @@ El warning existente de unit file cambiado/`daemon-reload` es deuda operativa aj
 
 ### Resultado esperado
 
-Reporte final: PASS/FAIL por gate, commit e imagen exactos, health/ready, migración, bindings, backup, canary, idempotencia/dedupe, servicios ajenos sin cambios, Cloudflare/Access si se ejecutó y rollback image registrado.
+Reporte final: PASS/FAIL por gate, commit e imagen exactos, CI exacto, smoke browser, health/ready, migración, bindings, backup, canary, idempotencia/dedupe, reanálisis/notificaciones, servicios ajenos sin cambios, Cloudflare/Access si se ejecutó y rollback image registrado.
