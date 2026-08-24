@@ -55,6 +55,12 @@ jobs:
       - name: Mypy
         run: uv run --locked mypy app tests
 
+      - name: Frontend JavaScript syntax
+        run: |
+          for file in app/web/*.js; do
+            node --check "$file"
+          done
+
       - name: Deployment shell syntax
         run: >-
           bash -n
