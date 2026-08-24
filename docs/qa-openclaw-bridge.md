@@ -6,16 +6,16 @@ OpenClaw executes this checklist only as QA/deployment operator. It must not mod
 
 Job Radar production already runs on the Oracle ARM64 VPS at `127.0.0.1:8010`; PostgreSQL is loopback-only at `127.0.0.1:5432`. The current OpenClaw vacancy workflow is cron-driven and writes processed JSON under `/home/ubuntu/.openclaw/workspace/tracking/agentmail-vacancies/`. Existing cloud sync must stay intact during burn-in.
 
-The bridge code is authored in the Job Radar repository and deployed by `ops/install_openclaw_bridge.sh`. OpenClaw does not write the bridge logic.
+The bridge code is authored in the Job Radar repository. OpenClaw only deploys and validates it.
 
 ## Gate 1 — exact release
 
 - checkout exact merged `main` commit in `/srv/job-radar/app`;
-- verify the corresponding immutable GHCR ARM64 image exists;
-- run existing Job Radar smoke checks before touching the bridge;
-- record existing OpenClaw crontab and hashes of the current vacancy scripts.
+- run existing Job Radar smoke checks;
+- record current OpenClaw crontab and SHA-256 hashes of existing vacancy scripts;
+- do not restart the OpenClaw gateway.
 
-## Gate 2 — controlled install
+## Gate 2 — staged install, automatic bridge still OFF
 
 Run:
 
@@ -25,22 +25,24 @@ bash ops/install_openclaw_bridge.sh /srv/job-radar/app/.env.production
 
 Verify:
 
-- current vacancy scripts have identical hashes before/after;
+- existing vacancy script hashes are identical before/after;
 - existing AgentMail and daily-summary cron entries are unchanged;
-- exactly one `JOB_RADAR_BRIDGE_MANAGED` cron entry exists;
+- **zero** `JOB_RADAR_BRIDGE_MANAGED` cron entries exist after a first install;
 - bridge script exists and is executable;
 - dedicated `config/job-radar.env` is mode `0600` and contains no PostgreSQL password;
-- API URL points only to `127.0.0.1:8010`;
-- activation cutoff is at install time so historical processed files are not imported;
+- API URL is exactly localhost `127.0.0.1:8010`;
+- activation cutoff is install time so historical processed files are not imported;
 - OpenClaw gateway was not restarted.
 
-## Gate 3 — dry run
+If a bridge cron already existed from a prior enabled deployment, STOP and report instead of changing its state during this first-deploy QA.
 
-Use one known processed JSON with `--file ... --dry-run` and confirm mapping succeeds without HTTP traffic or state mutation. Check that missing work mode, seniority, external ID and relative publication timestamps are not invented.
+## Gate 3 — dry run while automatic bridge is OFF
 
-## Gate 4 — synthetic canary through the deployed bridge
+Use one known processed JSON with `--file ... --dry-run`. Confirm mapping succeeds without HTTP traffic or state mutation. Missing work mode, seniority, external ID and relative publication timestamps must not be invented.
 
-Create one temporary processed-vacancy JSON fixture matching the real observed shape, after the activation cutoff. Run the deployed bridge explicitly on that file.
+## Gate 4 — synthetic canary while automatic bridge is OFF
+
+Create one temporary processed-vacancy JSON fixture matching the real observed shape and run the deployed bridge explicitly with `--file`.
 
 Expected:
 
@@ -48,25 +50,32 @@ Expected:
 - worker completes normalization and analysis;
 - Radar shows the canary;
 - bridge state records one accepted event;
-- rerunning the same file reports skipped/already-state behavior and creates no additional ingestion/job/posting/sighting/analysis;
-- Notion/Supabase/Fast.io paths remain untouched by the bridge test.
+- rerunning the exact same file is skipped from state and creates no additional ingestion/job/posting/sighting/analysis;
+- existing Notion/Supabase/Fast.io paths are untouched by this explicit bridge test.
 
-Delete only the temporary fixture after evidence is collected; preserve bridge state/log.
+Delete only the temporary fixture after collecting evidence. Preserve state/log.
 
-## Gate 5 — real burn-in activation
+## Gate 5 — explicit enable only after Gate 4 PASS
 
-Allow the managed bridge cron to run alongside the existing vacancy cron. Validate at least the first real processed batch:
+Run:
+
+```bash
+bash ops/enable_openclaw_bridge.sh
+```
+
+Verify exactly one `JOB_RADAR_BRIDGE_MANAGED` cron entry exists and all pre-existing cron entries remain unchanged.
+
+Then allow real burn-in alongside the existing vacancy cron. Validate the first real post-cutoff processed batch if one arrives during the QA window:
 
 - existing cloud sync still succeeds;
-- every post-cutoff processed vacancy is attempted once by the bridge;
-- Job Radar receives and processes expected rows;
-- titles/companies/locations/URLs/salary text match the processed JSON;
-- duplicate/reappearance behavior is owned by Job Radar, not by the transport state;
-- bridge log contains no API key or database secret.
+- every new processed vacancy is attempted once by the bridge;
+- Job Radar receives/processes expected rows;
+- title/company/location/URL/salary text match processed JSON;
+- bridge log contains no API key/database secret.
 
-Do not disable Notion yet.
+If no real vacancy arrives in a reasonable QA window, report real burn-in as `NOT RUN`, not FAIL. Do not fabricate traffic and do not disable Notion.
 
-## Rollback test
+## Rollback readiness
 
 If install/canary fails, run:
 
@@ -74,8 +83,8 @@ If install/canary fails, run:
 bash ops/uninstall_openclaw_bridge.sh
 ```
 
-Confirm only the managed bridge cron/script/secret are removed and existing vacancy cron/cloud sync remains healthy. State/log/history may remain for audit.
+Confirm only managed bridge cron/script/secret are removed and existing vacancy cron/cloud sync remains healthy. State/log/history may remain for audit.
 
 ## Report
 
-Return PASS/FAIL for: exact release, install isolation, secret isolation, dry run, synthetic canary, retry/idempotency, existing cloud sync unchanged, real burn-in first batch (if executed), logs/secrets, and rollback readiness. Include exact commit and evidence, but never secret values.
+Return PASS/FAIL for exact release, staged install isolation, secret isolation, dry run, synthetic canary, retry/idempotency, explicit cron enable, existing cloud sync unchanged, first real burn-in batch PASS/NOT RUN, logs/secrets and rollback readiness. Include exact commit and evidence, never secret values.
