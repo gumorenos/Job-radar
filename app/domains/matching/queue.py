@@ -17,6 +17,13 @@ class AnalysisQueueResult:
     created: bool
 
 
+@dataclass(frozen=True)
+class AnalysisQueueBatchResult:
+    tasks: tuple[ProcessingTask, ...]
+    created: int
+    reused_pending: int
+
+
 def ensure_pending_job_analysis(session: Session, job_id: UUID) -> AnalysisQueueResult:
     """Ensure one pending follow-up analysis exists for the latest committed job/profile state.
 
@@ -38,3 +45,45 @@ def ensure_pending_job_analysis(session: Session, job_id: UUID) -> AnalysisQueue
     if pending is not None:
         return AnalysisQueueResult(task=pending, created=False)
     return AnalysisQueueResult(task=enqueue_job_analysis(session, job_id), created=True)
+
+
+def ensure_pending_job_analyses(
+    session: Session,
+    job_ids: list[UUID],
+) -> AnalysisQueueBatchResult:
+    unique_job_ids = list(dict.fromkeys(job_ids))
+    if not unique_job_ids:
+        return AnalysisQueueBatchResult(tasks=(), created=0, reused_pending=0)
+
+    pending_by_job = {
+        task.entity_id: task
+        for task in session.scalars(
+            select(ProcessingTask)
+            .where(
+                ProcessingTask.task_type == TaskType.ANALYZE_MATCH,
+                ProcessingTask.entity_type == "job",
+                ProcessingTask.entity_id.in_(unique_job_ids),
+                ProcessingTask.status == TaskStatus.PENDING,
+            )
+            .order_by(ProcessingTask.created_at.asc())
+        )
+        if task.entity_id not in locals().get("pending_by_job", {})
+    }
+
+    tasks: list[ProcessingTask] = []
+    created = 0
+    reused = 0
+    for job_id in unique_job_ids:
+        pending = pending_by_job.get(job_id)
+        if pending is not None:
+            tasks.append(pending)
+            reused += 1
+            continue
+        tasks.append(enqueue_job_analysis(session, job_id))
+        created += 1
+
+    return AnalysisQueueBatchResult(
+        tasks=tuple(tasks),
+        created=created,
+        reused_pending=reused,
+    )
