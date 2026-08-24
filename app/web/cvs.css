@@ -31,7 +31,9 @@
 .cv-card small { color: var(--muted); }
 .cv-card p { color: var(--muted); font-size: 13px; line-height: 1.45; }
 .cv-card .cv-target { min-height: 19px; margin: 15px 0 5px; font-weight: 680; color: var(--ink); }
-.cv-card .cv-preview { min-height: 58px; margin: 4px 0 12px; overflow-wrap: anywhere; }
+.cv-card .cv-preview { min-height: 58px; margin: 4px 0 8px; overflow-wrap: anywhere; }
+.cv-card .cv-file-meta { margin: 0 0 12px; font-size: 12px; overflow-wrap: anywhere; }
+.cv-card .cv-file-meta.muted { opacity: .82; }
 .cv-card .cv-warning {
   margin: 0 0 12px;
   padding: 9px 10px;
@@ -41,7 +43,9 @@
   font-size: 12px;
 }
 .cv-card-actions { margin-top: auto; display: flex; gap: 7px; flex-wrap: wrap; }
-.cv-card-actions button { font-size: 12px; }
+.cv-card-actions button,
+.cv-card-actions .cv-file-link { font-size: 12px; }
+.cv-file-link { text-decoration: none; }
 .tag {
   display: inline-flex;
   border-radius: 999px;
@@ -71,6 +75,7 @@
 .cv-dialog-heading h2 { margin: 3px 0 0; font-size: 21px; }
 .cv-dialog label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
 .cv-dialog input[type="text"],
+.cv-dialog input[type="file"],
 .cv-dialog textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -80,6 +85,8 @@
   padding: 9px 10px;
   font-weight: 450;
 }
+.cv-dialog input[type="file"] { padding: 7px; }
+.cv-file-field small { color: var(--muted); font-size: 11px; font-weight: 450; }
 .cv-dialog textarea { resize: vertical; min-height: 130px; }
 .cv-form-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .cv-checks { display: flex; gap: 18px; flex-wrap: wrap; }

@@ -147,6 +147,7 @@
         <label><span>Área objetivo</span><input type="text" name="target_area" id="cvTargetArea" maxlength="200" placeholder="Ej. People Analytics"></label>
       </div>
       <label><span>Contenido o notas</span><textarea name="content_text" id="cvContent" rows="8" placeholder="Texto del CV o notas para esta versión"></textarea></label>
+      <label class="cv-file-field"><span>Archivo original (opcional)</span><input type="file" name="cv_file" id="cvFile" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"><small>PDF, DOCX o TXT · máximo 10 MB. El archivo de una versión es inmutable.</small></label>
       <div class="cv-checks"><label><input type="checkbox" name="is_base" id="cvIsBase"> Marcar como CV base</label><label><input type="checkbox" name="activate" id="cvActivate"> Usar como CV activo</label></div>
       <p class="cv-form-note">Crear una versión nueva nunca sobrescribe un CV existente.</p>
       <div class="cv-dialog-actions"><button type="button" class="secondary" id="cancelCvDialog">Cancelar</button><button type="submit" class="primary" id="saveCvButton">Guardar CV</button></div>
