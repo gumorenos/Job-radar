@@ -21,6 +21,7 @@ def test_application_shell_exposes_complete_core_navigation() -> None:
     assert 'src="/app/applications.js"' in response.text
     assert 'src="/app/cvs.js"' in response.text
     assert 'src="/app/settings.js"' in response.text
+    assert 'src="/app/notifications.js"' in response.text
     assert 'href="/app/duplicates.css"' in response.text
     assert 'href="/app/applications.css"' in response.text
     assert 'href="/app/settings.css"' in response.text
@@ -42,6 +43,8 @@ def test_application_shell_serves_core_frontend_assets() -> None:
         cvs_css = client.get("/app/cvs.css")
         settings_js = client.get("/app/settings.js")
         settings_css = client.get("/app/settings.css")
+        notifications_js = client.get("/app/notifications.js")
+        notifications_css = client.get("/app/notifications.css")
 
     assert favicon.status_code == 200
     assert favicon.headers["content-type"].startswith("image/svg+xml")
@@ -64,3 +67,8 @@ def test_application_shell_serves_core_frontend_assets() -> None:
     assert "/api/v1/profile" in settings_js.text
     assert settings_css.status_code == 200
     assert ".profile-settings" in settings_css.text
+    assert notifications_js.status_code == 200
+    assert "/api/v1/notifications/inbox" in notifications_js.text
+    assert "notificationDrawer" in notifications_js.text
+    assert notifications_css.status_code == 200
+    assert ".notification-drawer" in notifications_css.text
