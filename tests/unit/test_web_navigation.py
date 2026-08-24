@@ -22,6 +22,7 @@ def test_application_shell_exposes_complete_core_navigation() -> None:
     assert 'src="/app/applications.js"' in response.text
     assert 'src="/app/cvs.js"' in response.text
     assert 'src="/app/settings.js"' in response.text
+    assert 'src="/app/feedback_insights.js"' in response.text
     assert 'src="/app/notifications.js"' in response.text
     assert 'href="/app/duplicates.css"' in response.text
     assert 'href="/app/applications.css"' in response.text
@@ -46,6 +47,8 @@ def test_application_shell_serves_core_frontend_assets() -> None:
         cvs_css = client.get("/app/cvs.css")
         settings_js = client.get("/app/settings.js")
         settings_css = client.get("/app/settings.css")
+        feedback_insights_js = client.get("/app/feedback_insights.js")
+        feedback_insights_css = client.get("/app/feedback_insights.css")
         notifications_js = client.get("/app/notifications.js")
         notifications_css = client.get("/app/notifications.css")
 
@@ -83,6 +86,13 @@ def test_application_shell_serves_core_frontend_assets() -> None:
     assert "/api/v1/profile" in settings_js.text
     assert settings_css.status_code == 200
     assert ".profile-settings" in settings_css.text
+    assert feedback_insights_js.status_code == 200
+    assert "Correcciones del Radar" in feedback_insights_js.text
+    assert "/api/v1/feedback/insights" in feedback_insights_js.text
+    assert "no cambian reglas automáticamente" in feedback_insights_js.text
+    assert feedback_insights_css.status_code == 200
+    assert ".feedback-insight-metrics" in feedback_insights_css.text
+    assert ".feedback-transition-row" in feedback_insights_css.text
     assert notifications_js.status_code == 200
     assert "/api/v1/notifications/inbox" in notifications_js.text
     assert "notificationDrawer" in notifications_js.text
