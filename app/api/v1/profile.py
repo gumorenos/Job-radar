@@ -24,6 +24,10 @@ class CandidateProfileView(BaseModel):
     salary_min_pen: Decimal
     remote_salary_multiplier: Decimal
     remote_salary_min_pen: Decimal
+    experience_years: Decimal | None
+    degrees: list[str]
+    skills: list[str]
+    transferable_skills: list[str]
     target_locations: list[str]
     target_roles: list[str]
     target_areas: list[str]
@@ -37,6 +41,10 @@ class CandidateProfileUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     salary_min_pen: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     remote_salary_multiplier: Decimal = Field(ge=1, le=5, max_digits=5, decimal_places=2)
+    experience_years: Decimal | None = Field(default=None, ge=0, le=80, decimal_places=2)
+    degrees: list[str]
+    skills: list[str]
+    transferable_skills: list[str]
     target_locations: list[str]
     target_roles: list[str]
     target_areas: list[str]
@@ -45,6 +53,9 @@ class CandidateProfileUpdate(BaseModel):
     timezone: str = Field(min_length=1, max_length=80)
 
     @field_validator(
+        "degrees",
+        "skills",
+        "transferable_skills",
         "target_locations",
         "target_roles",
         "target_areas",
@@ -101,6 +112,10 @@ def _view(profile: CandidateProfile) -> CandidateProfileView:
         salary_min_pen=profile.salary_min_pen,
         remote_salary_multiplier=profile.remote_salary_multiplier,
         remote_salary_min_pen=(profile.salary_min_pen * profile.remote_salary_multiplier),
+        experience_years=profile.experience_years,
+        degrees=list(profile.degrees),
+        skills=list(profile.skills),
+        transferable_skills=list(profile.transferable_skills),
         target_locations=list(profile.target_locations),
         target_roles=list(profile.target_roles),
         target_areas=list(profile.target_areas),
@@ -128,6 +143,10 @@ def update_profile(
     profile.name = payload.name
     profile.salary_min_pen = payload.salary_min_pen
     profile.remote_salary_multiplier = payload.remote_salary_multiplier
+    profile.experience_years = payload.experience_years
+    profile.degrees = payload.degrees
+    profile.skills = payload.skills
+    profile.transferable_skills = payload.transferable_skills
     profile.target_locations = payload.target_locations
     profile.target_roles = payload.target_roles
     profile.target_areas = payload.target_areas
