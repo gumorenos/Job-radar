@@ -17,6 +17,20 @@ const dailyReviewTime = document.getElementById("dailyReviewTime");
 const profileTimezone = document.getElementById("profileTimezone");
 const saveProfileSettings = document.getElementById("saveProfileSettings");
 const settingsUnsavedHint = document.getElementById("settingsUnsavedHint");
+const settingsSaveBar = profileSettingsForm.querySelector(".settings-save-bar");
+
+const ingestionCard = document.createElement("section");
+ingestionCard.className = "settings-card ingestion-health-card";
+ingestionCard.innerHTML = `
+  <div class="settings-card-heading">
+    <h3>Fuentes e ingesta</h3>
+    <p>Estado interno de las entradas que están llegando a Job Radar. No expone payloads ni secretos.</p>
+  </div>
+  <div class="ingestion-health" id="ingestionHealth" aria-live="polite">
+    <p class="ingestion-health-empty">Cargando fuentes…</p>
+  </div>`;
+profileSettingsForm.insertBefore(ingestionCard, settingsSaveBar);
+const ingestionHealth = document.getElementById("ingestionHealth");
 
 let profileLoaded = false;
 let profileDirty = false;
@@ -101,6 +115,58 @@ function renderProfile(profile) {
   settingsUnsavedHint.textContent = "Los cambios se aplican al próximo análisis.";
 }
 
+function formatIngestionTime(value) {
+  if (!value) return "Sin actividad";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Sin actividad";
+  return new Intl.DateTimeFormat("es-PE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(parsed);
+}
+
+function renderIngestionHealth(overview) {
+  const sources = Array.isArray(overview.sources) ? overview.sources : [];
+  if (!sources.length) {
+    ingestionHealth.innerHTML = '<p class="ingestion-health-empty">Aún no hay ingestas registradas.</p>';
+    return;
+  }
+
+  const sourceRows = sources.map((source) => {
+    const warning = Number(source.failed || 0) > 0 || Number(source.partial || 0) > 0;
+    return `
+      <div class="ingestion-source-row">
+        <div>
+          <strong>${settingsEscape(source.ingestion_source)}</strong>
+          <span>Última entrada: ${settingsEscape(formatIngestionTime(source.last_received_at))}</span>
+        </div>
+        <div class="ingestion-source-metrics">
+          <span><b>${Number(source.total || 0)}</b> total</span>
+          <span><b>${Number(source.completed || 0)}</b> completas</span>
+          <span class="${warning ? "warning" : ""}"><b>${Number(source.failed || 0)}</b> fallidas</span>
+        </div>
+      </div>`;
+  }).join("");
+
+  ingestionHealth.innerHTML = `
+    ${sourceRows}
+    <div class="ingestion-task-summary">
+      Cola: ${Number(overview.pending_tasks || 0)} pendientes ·
+      ${Number(overview.running_tasks || 0)} ejecutando ·
+      ${Number(overview.failed_tasks || 0)} fallidas
+    </div>`;
+}
+
+async function loadIngestionHealth() {
+  if (!settingsRouteActive()) return;
+  try {
+    const overview = await profileApi("/api/v1/ingestions/summary");
+    renderIngestionHealth(overview);
+  } catch (error) {
+    ingestionHealth.innerHTML = `<p class="ingestion-health-empty error">No se pudo cargar el estado de fuentes: ${settingsEscape(error.message)}</p>`;
+  }
+}
+
 async function loadProfileSettings() {
   if (!settingsRouteActive()) return;
   profileSettingsStatus.classList.remove("error");
@@ -166,7 +232,13 @@ profileSettingsForm.addEventListener("input", (event) => {
 });
 profileSettingsForm.addEventListener("submit", saveSettings);
 window.addEventListener("hashchange", () => {
-  if (settingsRouteActive() && (!profileLoaded || !profileDirty)) loadProfileSettings();
+  if (settingsRouteActive()) {
+    if (!profileLoaded || !profileDirty) loadProfileSettings();
+    loadIngestionHealth();
+  }
 });
 
-if (settingsRouteActive()) loadProfileSettings();
+if (settingsRouteActive()) {
+  loadProfileSettings();
+  loadIngestionHealth();
+}
