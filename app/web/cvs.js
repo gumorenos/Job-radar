@@ -12,6 +12,7 @@ const cvName = document.getElementById("cvName");
 const cvTargetRole = document.getElementById("cvTargetRole");
 const cvTargetArea = document.getElementById("cvTargetArea");
 const cvContent = document.getElementById("cvContent");
+const cvFile = document.getElementById("cvFile");
 const cvIsBase = document.getElementById("cvIsBase");
 const cvActivate = document.getElementById("cvActivate");
 
@@ -58,6 +59,28 @@ async function cvApi(path, options = {}) {
   return response.json();
 }
 
+function fileMediaType(file) {
+  if (file.type) return file.type;
+  const lower = file.name.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".docx")) {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (lower.endsWith(".txt")) return "text/plain";
+  return "application/octet-stream";
+}
+
+async function uploadCvFile(cvId, file) {
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("El archivo supera el límite de 10 MB.");
+  }
+  return cvApi(`/api/v1/cvs/${cvId}/file?filename=${encodeURIComponent(file.name)}`, {
+    method: "PUT",
+    headers: { "Content-Type": fileMediaType(file) },
+    body: file,
+  });
+}
+
 function cvApprovalLabel(item) {
   if (item.approval_status === "DRAFT") return "Borrador";
   if (item.approval_status === "REJECTED") return "Rechazado";
@@ -72,6 +95,11 @@ function cvActions(item) {
   }
   if (item.approval_status === "APPROVED" && !item.is_active) {
     actions.push(`<button class="primary" data-cv-action="activate" data-cv-id="${item.id}">Usar este CV</button>`);
+  }
+  if (item.has_file) {
+    actions.push(`<a class="secondary cv-file-link" href="/api/v1/cvs/${item.id}/file">Descargar archivo</a>`);
+  } else {
+    actions.push(`<button class="secondary" data-cv-action="attach" data-cv-id="${item.id}">Adjuntar archivo</button>`);
   }
   actions.push(`<button class="secondary" data-cv-action="version" data-cv-id="${item.id}">Nueva versión</button>`);
   return actions.join("");
@@ -100,6 +128,9 @@ function renderCvItems(items) {
     const preview = item.content_text
       ? cvEscape(item.content_text.slice(0, 180))
       : "Sin contenido de texto guardado todavía.";
+    const fileMeta = item.has_file
+      ? `<p class="cv-file-meta">Archivo: ${cvEscape(item.original_filename || "documento")}</p>`
+      : '<p class="cv-file-meta muted">Sin archivo binario adjunto.</p>';
 
     return `
       <article class="cv-card ${item.is_active ? "active-cv" : ""}">
@@ -112,6 +143,7 @@ function renderCvItems(items) {
         </div>
         <p class="cv-target">${target || "Perfil general"}</p>
         <p class="cv-preview">${preview}</p>
+        ${fileMeta}
         ${item.generated_by_ai && item.approval_status === "DRAFT" ? `
           <p class="cv-warning">Este borrador fue generado por IA y no puede activarse hasta que lo apruebes.</p>` : ""}
         <div class="cv-card-actions">${cvActions(item)}</div>
@@ -166,6 +198,7 @@ function closeDialog() {
 async function saveCv(event) {
   event.preventDefault();
   const formData = new FormData(cvForm);
+  const file = cvFile.files[0] || null;
   const payload = {
     name: String(formData.get("name") || "").trim(),
     parent_cv_id: String(formData.get("parent_cv_id") || "").trim() || null,
@@ -181,13 +214,27 @@ async function saveCv(event) {
   cvStatus.textContent = "Guardando CV…";
   cvStatus.classList.remove("error");
   try {
-    await cvApi("/api/v1/cvs", {
+    const created = await cvApi("/api/v1/cvs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    let fileError = null;
+    if (file) {
+      cvStatus.textContent = "Guardando archivo del CV…";
+      try {
+        await uploadCvFile(created.id, file);
+      } catch (error) {
+        fileError = error;
+      }
+    }
     closeDialog();
-    cvStatus.textContent = payload.parent_cv_id ? "Nueva versión guardada." : "CV guardado.";
+    if (fileError) {
+      cvStatus.textContent = `La versión se guardó, pero el archivo no: ${fileError.message}. Puedes adjuntarlo desde la tarjeta.`;
+      cvStatus.classList.add("error");
+    } else {
+      cvStatus.textContent = payload.parent_cv_id ? "Nueva versión guardada." : "CV guardado.";
+    }
     await loadCvs({ preserveStatus: true });
   } catch (error) {
     cvStatus.textContent = error.message;
@@ -197,6 +244,27 @@ async function saveCv(event) {
   }
 }
 
+async function chooseAndAttachFile(item) {
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.accept = ".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+  picker.addEventListener("change", async () => {
+    const file = picker.files[0];
+    if (!file) return;
+    cvStatus.textContent = `Adjuntando ${file.name}…`;
+    cvStatus.classList.remove("error");
+    try {
+      await uploadCvFile(item.id, file);
+      cvStatus.textContent = "Archivo guardado. Esta versión ya no puede sobrescribirse.";
+      await loadCvs({ preserveStatus: true });
+    } catch (error) {
+      cvStatus.textContent = error.message;
+      cvStatus.classList.add("error");
+    }
+  }, { once: true });
+  picker.click();
+}
+
 async function applyCvAction(action, item) {
   cvStatus.textContent = "Actualizando CV…";
   cvStatus.classList.remove("error");
@@ -204,6 +272,11 @@ async function applyCvAction(action, item) {
     if (action === "version") {
       openNewCvDialog(item);
       cvStatus.textContent = "";
+      return;
+    }
+    if (action === "attach") {
+      cvStatus.textContent = "";
+      chooseAndAttachFile(item);
       return;
     }
     if (action === "activate") {
