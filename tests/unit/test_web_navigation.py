@@ -18,6 +18,7 @@ def test_application_shell_exposes_complete_core_navigation() -> None:
     assert 'name="opportunity_search"' in response.text
     assert 'href="/app/favicon.svg"' in response.text
     assert 'src="/app/structured_fit.js"' in response.text
+    assert 'src="/app/radar_paging.js"' in response.text
     assert 'src="/app/duplicates.js"' in response.text
     assert 'src="/app/applications.js"' in response.text
     assert 'src="/app/cvs.js"' in response.text
@@ -39,6 +40,7 @@ def test_application_shell_serves_core_frontend_assets() -> None:
         styles = client.get("/app/styles.css")
         structured_fit_js = client.get("/app/structured_fit.js")
         structured_fit_css = client.get("/app/structured_fit.css")
+        radar_paging_js = client.get("/app/radar_paging.js")
         duplicates_js = client.get("/app/duplicates.js")
         duplicates_css = client.get("/app/duplicates.css")
         applications_js = client.get("/app/applications.js")
@@ -70,6 +72,8 @@ def test_application_shell_serves_core_frontend_assets() -> None:
     assert ".recommended-cv-section" in structured_fit_css.text
     assert ".fit-status.transferable" in structured_fit_css.text
     assert ".rule-status.hard" in structured_fit_css.text
+    assert radar_paging_js.status_code == 200
+    assert "loadPaginatedRadarJobs" in radar_paging_js.text
     assert duplicates_js.status_code == 200
     assert "Mantener separadas" in duplicates_js.text
     assert duplicates_css.status_code == 200
