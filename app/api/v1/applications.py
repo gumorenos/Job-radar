@@ -121,6 +121,7 @@ def list_applications(
     session: SessionDep,
     stage: ApplicationStage | None = None,
     q: str | None = Query(default=None, max_length=200),
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
 ) -> ApplicationList:
     query = (
@@ -128,6 +129,7 @@ def list_applications(
         .join(Job, JobApplication.job_id == Job.id)
         .outerjoin(Company, Job.company_id == Company.id)
         .order_by(JobApplication.updated_at.desc())
+        .offset(offset)
         .limit(limit)
     )
     count_query = (
