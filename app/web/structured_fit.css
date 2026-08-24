@@ -1,26 +1,30 @@
-.structured-fit-section {
+.structured-fit-section,
+.business-rules-section,
+.recommended-cv-section {
   display: grid;
   gap: 9px;
 }
 
-.structured-fit-heading {
+.decision-section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.structured-fit-heading h3 {
+.decision-section-heading h3 {
   margin: 0;
 }
 
-.structured-fit-heading > span {
+.decision-section-heading > span {
   color: var(--muted);
   font-size: 10px;
   font-weight: 650;
 }
 
-.structured-fit-row {
+.structured-fit-row,
+.business-rule-row,
+.recommended-cv-card {
   display: grid;
   gap: 5px;
   padding: 10px;
@@ -30,24 +34,30 @@
 }
 
 .structured-fit-row-heading,
-.structured-skill-item {
+.structured-skill-item,
+.business-rule-row > div {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.structured-fit-row-heading > strong {
+.structured-fit-row-heading > strong,
+.business-rule-row strong,
+.recommended-cv-card > strong {
   font-size: 12px;
 }
 
-.structured-fit-row > p {
+.structured-fit-row > p,
+.business-rule-row > p,
+.recommended-cv-card > p {
   color: #4d5667;
   font-size: 11px;
   line-height: 1.45;
 }
 
-.fit-status {
+.fit-status,
+.rule-status {
   display: inline-flex;
   width: max-content;
   flex: 0 0 auto;
@@ -57,12 +67,14 @@
   font-weight: 780;
 }
 
-.fit-status.meets {
+.fit-status.meets,
+.rule-status.info {
   color: var(--high);
   background: #eaf8f2;
 }
 
-.fit-status.partial {
+.fit-status.partial,
+.rule-status.warning {
   color: var(--review);
   background: #fff4df;
 }
@@ -73,7 +85,8 @@
 }
 
 .fit-status.missing,
-.fit-status.exclusion {
+.fit-status.exclusion,
+.rule-status.hard {
   color: #9d2f2f;
   background: #fff0f0;
 }
@@ -102,17 +115,38 @@
   border-top: 1px solid var(--line);
 }
 
-.structured-fit-note {
+.structured-fit-note,
+.business-rules-clear {
   padding: 8px 9px;
   border-radius: 7px;
-  background: #fff8e8;
-  color: #76501a;
   font-size: 10px !important;
 }
 
+.structured-fit-note {
+  background: #fff8e8;
+  color: #76501a;
+}
+
+.business-rules-clear {
+  background: #eef9f4;
+  color: #236b50;
+}
+
+.recommended-cv-card {
+  background: #f5f7ff;
+  border-color: #dce3ff;
+}
+
 @media (max-width: 760px) {
+  .decision-section-heading,
   .structured-fit-row-heading,
-  .structured-skill-item {
+  .structured-skill-item,
+  .business-rule-row > div {
     align-items: flex-start;
+  }
+
+  .decision-section-heading {
+    flex-direction: column;
+    gap: 3px;
   }
 }

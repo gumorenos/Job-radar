@@ -12,9 +12,24 @@ const structuredFitStatusPresentation = {
   UNKNOWN: { label: "Sin dato", className: "unknown" },
 };
 
+const businessRuleLabels = {
+  SENIORITY_TITLE: "Seniority del título",
+  ONSITE_LOCATION: "Ubicación y modalidad",
+  PUBLISHED_SALARY: "Salario publicado",
+  AGRICULTURE_INDUSTRY: "Industria",
+  DEGREE_MISMATCH: "Carrera / grado",
+  EXPERIENCE_GAP: "Experiencia",
+};
+
 function structuredFitPresentation(status) {
   return structuredFitStatusPresentation[status]
     || { label: status || "Sin dato", className: "unknown" };
+}
+
+function businessRulePresentation(severity) {
+  if (severity === "HARD") return { label: "Descarte duro", className: "hard" };
+  if (severity === "WARNING") return { label: "Advertencia", className: "warning" };
+  return { label: "Cumple", className: "info" };
 }
 
 function structuredFitRow(label, assessment) {
@@ -45,6 +60,39 @@ function structuredSkillItems(items) {
     </div>`;
 }
 
+function renderBusinessRules(analysis) {
+  const results = analysis?.rule_results?.results;
+  if (!Array.isArray(results) || !results.length) return "";
+
+  const active = results.filter((item) => item?.severity === "HARD" || item?.severity === "WARNING");
+  const passed = results.filter((item) => item?.severity === "INFO" && item?.passed !== false).length;
+  const rows = active.map((item) => {
+    const presentation = businessRulePresentation(item.severity);
+    const label = businessRuleLabels[item.code] || item.code || "Regla";
+    return `
+      <div class="business-rule-row">
+        <div>
+          <strong>${escapeHtml(label)}</strong>
+          <span class="rule-status ${presentation.className}">${escapeHtml(presentation.label)}</span>
+        </div>
+        <p>${escapeHtml(item.message || "Regla activada sin explicación adicional.")}</p>
+      </div>`;
+  }).join("");
+
+  const quietState = active.length
+    ? ""
+    : '<p class="business-rules-clear">Sin descartes duros ni advertencias activas.</p>';
+  return `
+    <section class="detail-section business-rules-section">
+      <div class="decision-section-heading">
+        <h3>Reglas de negocio</h3>
+        <span>${passed}/${results.length} sin alerta</span>
+      </div>
+      ${quietState}
+      ${rows}
+    </section>`;
+}
+
 function renderStructuredFit(analysis) {
   const structured = analysis?.skill_analysis?.structured_fit;
   if (!structured || typeof structured !== "object") return "";
@@ -62,7 +110,7 @@ function renderStructuredFit(analysis) {
 
   return `
     <section class="detail-section structured-fit-section">
-      <div class="structured-fit-heading">
+      <div class="decision-section-heading">
         <h3>Requisitos vs perfil</h3>
         <span>rules-v5</span>
       </div>
@@ -72,9 +120,26 @@ function renderStructuredFit(analysis) {
     </section>`;
 }
 
+function renderRecommendedCv(analysis) {
+  const cv = analysis?.skill_analysis?.recommended_cv;
+  if (!cv || typeof cv !== "object" || !cv.name) return "";
+  const version = cv.version === null || cv.version === undefined ? "" : ` · v${cv.version}`;
+  return `
+    <section class="detail-section recommended-cv-section">
+      <div class="decision-section-heading">
+        <h3>CV recomendado</h3>
+        <span>Para esta oportunidad</span>
+      </div>
+      <div class="recommended-cv-card">
+        <strong>${escapeHtml(cv.name)}${escapeHtml(version)}</strong>
+        <p>Esta recomendación pertenece al análisis guardado. No activa ni modifica un CV automáticamente.</p>
+      </div>
+    </section>`;
+}
+
 const baseRenderAnalysisWithNoStructuredFit = renderAnalysis;
 renderAnalysis = function renderAnalysisWithStructuredFit(analysis) {
   const base = baseRenderAnalysisWithNoStructuredFit(analysis);
   if (!analysis) return base;
-  return `${base}${renderStructuredFit(analysis)}`;
+  return `${base}${renderBusinessRules(analysis)}${renderStructuredFit(analysis)}${renderRecommendedCv(analysis)}`;
 };
