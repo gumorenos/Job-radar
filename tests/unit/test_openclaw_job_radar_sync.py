@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from ops.openclaw_job_radar_sync import (
     build_ingestion_payload,
@@ -25,11 +28,6 @@ def test_bridge_mapping_is_conservative_and_preserves_raw(tmp_path: Path) -> Non
     source_file = tmp_path / "processed-vacancies-20260823.json"
     source_file.write_text("[]", encoding="utf-8")
     timestamp = datetime(2026, 8, 23, 20, 0, tzinfo=UTC).timestamp()
-    source_file.touch()
-    source_file.chmod(0o600)
-    # Use utime after touch so captured_at fallback is deterministic.
-    import os
-
     os.utime(source_file, (timestamp, timestamp))
 
     record = {
@@ -71,7 +69,9 @@ def test_bridge_mapping_is_conservative_and_preserves_raw(tmp_path: Path) -> Non
     assert payload["raw"] == record
 
 
-def test_idempotency_key_is_stable_for_retry_and_changes_for_new_observation(tmp_path: Path) -> None:
+def test_idempotency_key_is_stable_for_retry_and_changes_for_new_observation(
+    tmp_path: Path,
+) -> None:
     first_file = tmp_path / "processed-vacancies-a.json"
     second_file = tmp_path / "processed-vacancies-b.json"
     record = {"title": "HRBP", "company": "ACME"}
@@ -91,8 +91,6 @@ def test_candidate_files_respect_activation_cutoff(tmp_path: Path) -> None:
     new = tmp_path / "processed-vacancies-new.json"
     old.write_text("[]", encoding="utf-8")
     new.write_text("[]", encoding="utf-8")
-
-    import os
 
     old_time = datetime(2026, 8, 20, tzinfo=UTC).timestamp()
     new_time = datetime(2026, 8, 23, 20, tzinfo=UTC).timestamp()
@@ -117,9 +115,5 @@ def test_parse_env_and_source_normalization(tmp_path: Path) -> None:
 
 
 def test_extract_vacancies_rejects_unknown_shape() -> None:
-    try:
+    with pytest.raises(ValueError, match="Processed vacancy JSON"):
         extract_vacancies({"unexpected": json.dumps([])})
-    except ValueError as exc:
-        assert "Processed vacancy JSON" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError")
