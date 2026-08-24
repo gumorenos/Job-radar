@@ -1,16 +1,25 @@
 # Job Radar
 
-Job Radar is the main repository for the personal job-search intelligence system.
+Job Radar is the main repository for a personal job-search operating system: sources discover opportunities, while Job Radar normalizes, deduplicates, applies business rules, explains fit, and supports the user's decisions and application workflow.
 
-The current development direction is a modular FastAPI + PostgreSQL backend that centralizes job ingestion, normalization, deduplication, matching, classification, feedback, and notifications. Existing MVP scripts remain available while their useful logic is progressively migrated into the new application package.
+`main` is the current source of truth for this repository. Feature work is developed through short-lived branches and pull requests; there is no permanent "current development branch".
 
-## Current development branch
+## Current personal v1 capabilities
 
-Active Phase 2 work is happening on `feat/phase-2-core-foundation`.
+- FastAPI + PostgreSQL ingestion API with Bearer authentication and idempotency.
+- Durable worker queue for normalization, matching, notification delivery, and retries.
+- Job/posting normalization, sightings, exact dedupe, uncertain duplicate review, and 30-day reappearance handling.
+- Explainable `rules-v5` matching with hard business rules, positive HR/People fit, structured experience/degree/skills facts, transferable skills, salary assessment, career-move assessment, and approved CV recommendation.
+- Human classification feedback that preserves the original system analysis, plus aggregated correction insights without automatically mutating rules.
+- Radar UI with High Priority / Review / Discard / Possible Duplicates, structured decision brief, sources, and feedback.
+- Applications CRM with independent lifecycle stages and notes.
+- Versioned CV library with immutable file storage; AI-generated versions remain DRAFT until explicit approval.
+- Editable candidate profile and an explicit `Reanalizar oportunidades` action for applying saved profile changes to active jobs.
+- Dashboard notification center plus optional Telegram immediate/daily-review delivery with durable retries.
+- Provider-neutral inbound-email foundation.
+- Production-oriented Docker Compose, Alembic migrations, ARM64-compatible image build, deployment/preflight/backup/smoke scripts, and an isolated OpenClaw bridge.
 
-The older `feat/stage-1-api-foundation` branch is intentionally preserved as a reference and is not the target architecture.
-
-## Runtime direction
+## Runtime
 
 - Python 3.14
 - FastAPI
@@ -19,10 +28,22 @@ The older `feat/stage-1-api-foundation` branch is intentionally preserved as a r
 - PostgreSQL 18
 - Docker Compose
 - `uv` for Python dependency management
-- ARM64-compatible deployment on Oracle Cloud Ubuntu
+- ARM64-compatible deployment target on Oracle Cloud Ubuntu
 
-See `docs/development.md` for local development instructions.
+## Validation
 
-## Legacy MVP
+The GitHub Actions quality gate runs Ruff, mypy, frontend JavaScript syntax checks, deployment script syntax checks, production Compose validation, Docker image build, unit tests, Alembic upgrade, and PostgreSQL integration tests.
 
-The existing scripts under `scripts/` are not being discarded. They contain useful scoring, normalization, candidate-profile, dashboard, and match-analysis logic that will be extracted into the new modular application in later phases.
+Real Oracle ARM64 deployment, browser QA, Cloudflare routing/Access, and live OpenClaw integration are separate operational gates.
+
+## Production status
+
+The application is **not deployed to Job Radar production yet**. There is no live public Job Radar hostname, live OpenClaw-to-Job-Radar ingestion, or confirmed production Telegram delivery at this point.
+
+The intended production API binding is loopback-only. Current deployment planning uses `127.0.0.1:8010`; PostgreSQL must never be exposed publicly. Cloudflare Access/app authentication is a prerequisite before public web exposure.
+
+See `docs/development.md`, `docs/core-completion.md`, `docs/production-deployment.md`, and `docs/qa-pending.md` for development, product-scope, deployment, and remaining QA details.
+
+## Historical scripts and the original MVP
+
+Scripts retained in this repository remain useful references where applicable. The separate original MVP repository continues independently; this repository does not redefine or deprecate it.
