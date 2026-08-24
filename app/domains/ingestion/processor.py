@@ -43,6 +43,22 @@ def _decimal_amount(value: object | None) -> Decimal | None:
         return None
 
 
+def _string_list(value: object | None) -> list[str]:
+    values = value if isinstance(value, list) else [value] if isinstance(value, str) else []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        item = clean_text(raw)
+        if item is None:
+            continue
+        key = item.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(item[:200])
+    return cleaned
+
+
 def _find_existing_posting(
     session: Session,
     posting_source: str | None,
@@ -102,6 +118,9 @@ def _job_for(
     work_mode_value: object | None,
     employment_type: str | None,
     seniority: str | None,
+    required_experience_years: Decimal | None,
+    required_degrees: list[str],
+    required_skills: list[str],
     seen_at: datetime,
 ) -> tuple[Job, bool]:
     settings = get_settings()
@@ -146,6 +165,12 @@ def _job_for(
             existing.city = city
         if not existing.seniority and seniority:
             existing.seniority = seniority
+        if existing.required_experience_years is None and required_experience_years is not None:
+            existing.required_experience_years = required_experience_years
+        if not existing.required_degrees and required_degrees:
+            existing.required_degrees = required_degrees
+        if not existing.required_skills and required_skills:
+            existing.required_skills = required_skills
         return existing, False
 
     job = Job(
@@ -161,6 +186,9 @@ def _job_for(
         work_mode=normalize_work_mode(work_mode_value),
         employment_type=employment_type,
         seniority=seniority,
+        required_experience_years=required_experience_years,
+        required_degrees=required_degrees,
+        required_skills=required_skills,
         status=JobStatus.ACTIVE,
         first_seen_at=seen_at,
         last_seen_at=seen_at,
@@ -201,6 +229,9 @@ def _update_existing_posting(
     work_mode_value: object | None,
     employment_type: str | None,
     seniority: str | None,
+    required_experience_years: Decimal | None,
+    required_degrees: list[str],
+    required_skills: list[str],
     salary_text: str | None,
     salary_min: Decimal | None,
     salary_max: Decimal | None,
@@ -265,6 +296,18 @@ def _update_existing_posting(
     if seniority is not None and seniority != job.seniority:
         job.seniority = seniority
         material_change = True
+    if (
+        required_experience_years is not None
+        and required_experience_years != job.required_experience_years
+    ):
+        job.required_experience_years = required_experience_years
+        material_change = True
+    if required_degrees and required_degrees != job.required_degrees:
+        job.required_degrees = required_degrees
+        material_change = True
+    if required_skills and required_skills != job.required_skills:
+        job.required_skills = required_skills
+        material_change = True
 
     if work_mode_value is not None:
         work_mode = normalize_work_mode(work_mode_value)
@@ -316,6 +359,9 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
     work_mode_value = raw_job.get("work_mode") or raw_job.get("modality") or raw_job.get("remote")
     employment_type = clean_text(raw_job.get("employment_type"))
     seniority = clean_text(raw_job.get("seniority"))
+    required_experience_years = _decimal_amount(raw_job.get("required_experience_years"))
+    required_degrees = _string_list(raw_job.get("required_degrees"))
+    required_skills = _string_list(raw_job.get("required_skills"))
     salary_text = clean_text(raw_job.get("salary_text"))
     salary_min = _decimal_amount(raw_job.get("salary_min"))
     salary_max = _decimal_amount(raw_job.get("salary_max"))
@@ -347,6 +393,9 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
             work_mode_value=work_mode_value,
             employment_type=employment_type,
             seniority=seniority,
+            required_experience_years=required_experience_years,
+            required_degrees=required_degrees,
+            required_skills=required_skills,
             salary_text=salary_text,
             salary_min=salary_min,
             salary_max=salary_max,
@@ -376,6 +425,9 @@ def normalize_ingestion_event(session: Session, event_id: UUID) -> Normalization
         work_mode_value=work_mode_value,
         employment_type=employment_type,
         seniority=seniority,
+        required_experience_years=required_experience_years,
+        required_degrees=required_degrees,
+        required_skills=required_skills,
         seen_at=event.received_at,
     )
     if job_created:
