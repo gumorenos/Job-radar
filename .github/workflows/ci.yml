@@ -65,8 +65,8 @@ jobs:
           ops/install_openclaw_bridge.sh
           ops/uninstall_openclaw_bridge.sh
 
-      - name: OpenClaw bridge syntax
-        run: uv run --locked python -m py_compile ops/openclaw_job_radar_sync.py
+      - name: OpenClaw bridge syntax on host Python
+        run: /usr/bin/python3 -m py_compile ops/openclaw_job_radar_sync.py
 
       - name: Production Compose config
         run: docker compose --env-file .env.production.example config >/dev/null
