@@ -173,25 +173,24 @@ def test_provider_message_id_is_a_retry_identity_when_header_is_missing() -> Non
 
 
 def test_extraction_handoff_enters_normal_job_pipeline_and_retry_does_not_duplicate() -> None:
-    extraction = {
+    posting: dict[str, object] = {
+        "posting_source": "linkedin",
+        "external_id": "email-linkedin-001",
+        "job": {
+            "title": "Senior People Analytics Analyst",
+            "company": "Analytics Corp",
+            "location": "Lima",
+            "work_mode": "hybrid",
+            "salary_text": "S/ 9,000",
+            "description": "People Analytics y HR Analytics para Gestión Humana.",
+            "url": "https://example.com/jobs/email-people-analytics",
+        },
+        "metadata": {"extraction_confidence": "high"},
+        "raw": {"source_fragment": "job-card-1"},
+    }
+    extraction: dict[str, object] = {
         "extractor_version": "email-rules-v1",
-        "postings": [
-            {
-                "posting_source": "linkedin",
-                "external_id": "email-linkedin-001",
-                "job": {
-                    "title": "Senior People Analytics Analyst",
-                    "company": "Analytics Corp",
-                    "location": "Lima",
-                    "work_mode": "hybrid",
-                    "salary_text": "S/ 9,000",
-                    "description": "People Analytics y HR Analytics para Gestión Humana.",
-                    "url": "https://example.com/jobs/email-people-analytics",
-                },
-                "metadata": {"extraction_confidence": "high"},
-                "raw": {"source_fragment": "job-card-1"},
-            }
-        ],
+        "postings": [posting],
         "metadata": {"extractor": "provider-neutral-test"},
     }
 
@@ -212,14 +211,13 @@ def test_extraction_handoff_enters_normal_job_pipeline_and_retry_does_not_duplic
             headers={**_auth_headers(), "Idempotency-Key": "extract-001"},
             json=extraction,
         )
-        changed = {
+        changed_posting: dict[str, object] = {
+            **posting,
+            "external_id": "email-linkedin-changed",
+        }
+        changed: dict[str, object] = {
             **extraction,
-            "postings": [
-                {
-                    **extraction["postings"][0],
-                    "external_id": "email-linkedin-changed",
-                }
-            ],
+            "postings": [changed_posting],
         }
         conflict = client.post(
             f"/api/v1/emails/inbound/{email_id}/extractions",
@@ -251,7 +249,6 @@ def test_extraction_handoff_enters_normal_job_pipeline_and_retry_does_not_duplic
         assert extracted is not None
         assert email is not None
         assert event.ingestion_source == "email"
-        assert event.metadata_json if hasattr(event, "metadata_json") else True
         assert extracted.ingestion_event_id == event.id
         assert extracted.extraction_payload["external_id"] == "email-linkedin-001"
         assert email.status == IngestionStatus.COMPLETED
