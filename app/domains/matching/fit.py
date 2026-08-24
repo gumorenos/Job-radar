@@ -143,6 +143,39 @@ def _phrase_matches(terms: tuple[str, ...], text_key: str) -> list[str]:
     return [term for term in terms if _contains_phrase(text_key, term)]
 
 
+def assess_career_move(fit: FitEvaluation) -> str:
+    """Describe strategic alignment without inventing candidate-history facts."""
+    if fit.role_matches and fit.core_area_matches:
+        return (
+            "Movimiento alineado: combina un rol objetivo con un área foco de la búsqueda. "
+            "La progresión concreta depende del alcance y responsabilidades del puesto."
+        )
+    if fit.role_matches and fit.adjacent_area_matches:
+        return (
+            "Movimiento adyacente: el rol está dentro del objetivo, pero el contenido visible "
+            "se concentra en un área adyacente; conviene revisar alcance y exposición estratégica."
+        )
+    if fit.role_matches:
+        return (
+            "Rol alineado con alcance por confirmar: el título encaja con la búsqueda, pero la "
+            "descripción no confirma todavía un área foco o adyacente."
+        )
+    if fit.core_area_matches:
+        return (
+            "Área alineada con nivel por confirmar: el contenido toca un área foco, pero el título "
+            "no confirma un rol objetivo de RRHH/People."
+        )
+    if fit.adjacent_area_matches:
+        return (
+            "Movimiento exploratorio: aparece un área adyacente, sin evidencia suficiente de rol "
+            "objetivo ni de área foco."
+        )
+    return (
+        "Movimiento no confirmado: con la información disponible no se observa todavía una "
+        "alineación clara con rol objetivo o áreas priorizadas."
+    )
+
+
 def evaluate_positive_fit(facts: FitSignalInput) -> FitEvaluation:
     title_key = comparison_key(facts.title) or ""
     text_key = comparison_key(" ".join(filter(None, (facts.title, facts.description)))) or ""
