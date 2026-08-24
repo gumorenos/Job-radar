@@ -105,6 +105,20 @@ def test_add_job_is_idempotent_and_visible_in_to_apply() -> None:
         assert len(rows) == 1
 
 
+def test_application_list_total_is_not_truncated_by_limit() -> None:
+    jobs = [_create_job() for _ in range(3)]
+
+    with TestClient(app) as client:
+        for job in jobs:
+            response = client.post(f"/api/v1/applications/jobs/{job.id}")
+            assert response.status_code == 200
+        listing = client.get("/api/v1/applications?stage=TO_APPLY&limit=1")
+
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 3
+    assert len(listing.json()["items"]) == 1
+
+
 def test_application_stage_changes_and_preserves_application_timestamp() -> None:
     job = _create_job()
 

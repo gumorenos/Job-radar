@@ -14,7 +14,7 @@ from app.domains.matching.facts import (
     monthly_salary_pen,
     published_salary_unassessed,
 )
-from app.domains.matching.fit import FitSignalInput, evaluate_positive_fit
+from app.domains.matching.fit import FitSignalInput, assess_career_move, evaluate_positive_fit
 from app.domains.matching.rules import (
     MatchingRuleInput,
     MatchingRulePolicy,
@@ -24,7 +24,7 @@ from app.domains.matching.rules import (
 from app.domains.notifications.service import plan_match_notifications
 from app.domains.profiles.service import get_or_create_active_profile
 
-ANALYZER_VERSION = "rules-v3"
+ANALYZER_VERSION = "rules-v4"
 
 
 def _latest_posting(session: Session, job_id: UUID) -> JobPosting | None:
@@ -198,7 +198,7 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
         },
         strengths=list(fit.strengths),
         gaps=[*warning_messages, *fit.gaps],
-        career_move_assessment=None,
+        career_move_assessment=assess_career_move(fit),
         salary_assessment=str(salary_result["message"]) if salary_result else None,
         recommendation=recommendation,
         explanation=explanation,

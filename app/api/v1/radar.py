@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
@@ -114,6 +115,14 @@ class RadarJobDetail(BaseModel):
     postings: list[RadarPosting]
 
 
+@dataclass(frozen=True)
+class RadarReadContext:
+    analyses: dict[UUID, MatchAnalysis]
+    feedback: dict[UUID, ClassificationFeedback]
+    postings: dict[UUID, JobPosting]
+    companies: dict[UUID, Company]
+
+
 def _active_jobs_query() -> Select[tuple[Job]]:
     return select(Job).where(Job.status.in_((JobStatus.ACTIVE, JobStatus.UNKNOWN)))
 
@@ -165,6 +174,75 @@ def _latest_posting(session: Session, job_id: UUID) -> JobPosting | None:
     )
 
 
+def _bulk_read_context(session: Session, jobs: list[Job]) -> RadarReadContext:
+    job_ids = [job.id for job in jobs]
+    if not job_ids:
+        return RadarReadContext(analyses={}, feedback={}, postings={}, companies={})
+
+    analyses = {
+        analysis.job_id: analysis
+        for analysis in session.scalars(
+            select(MatchAnalysis)
+            .where(MatchAnalysis.job_id.in_(job_ids))
+            .distinct(MatchAnalysis.job_id)
+            .order_by(MatchAnalysis.job_id, MatchAnalysis.created_at.desc())
+        )
+    }
+    feedback = {
+        item.job_id: item
+        for item in session.scalars(
+            select(ClassificationFeedback)
+            .where(ClassificationFeedback.job_id.in_(job_ids))
+            .distinct(ClassificationFeedback.job_id)
+            .order_by(ClassificationFeedback.job_id, ClassificationFeedback.created_at.desc())
+        )
+    }
+    postings = {
+        posting.job_id: posting
+        for posting in session.scalars(
+            select(JobPosting)
+            .where(JobPosting.job_id.in_(job_ids))
+            .distinct(JobPosting.job_id)
+            .order_by(JobPosting.job_id, JobPosting.last_seen_at.desc())
+        )
+    }
+    company_ids = {job.company_id for job in jobs if job.company_id is not None}
+    companies = (
+        {
+            company.id: company
+            for company in session.scalars(select(Company).where(Company.id.in_(company_ids)))
+        }
+        if company_ids
+        else {}
+    )
+    return RadarReadContext(
+        analyses=analyses,
+        feedback=feedback,
+        postings=postings,
+        companies=companies,
+    )
+
+
+def _effective_from_context(
+    context: RadarReadContext, job_id: UUID
+) -> tuple[Classification | None, str, MatchAnalysis | None]:
+    analysis = context.analyses.get(job_id)
+    feedback = context.feedback.get(job_id)
+    if feedback is not None:
+        return feedback.human_classification, "human", analysis
+    if analysis is not None and analysis.classification is not None:
+        return analysis.classification, "analysis", analysis
+    return None, "unclassified", analysis
+
+
+def _company_name_from_context(context: RadarReadContext, job: Job) -> str | None:
+    if job.company_id is not None:
+        company = context.companies.get(job.company_id)
+        if company is not None:
+            return company.name
+    return job.company_name_raw
+
+
 def _safe_posting_url(posting: JobPosting) -> str | None:
     value = posting.canonical_url or posting.source_url_raw
     if not value:
@@ -189,13 +267,13 @@ def _matches_view(classification: Classification | None, view: RadarView) -> boo
     return False
 
 
-def _item(session: Session, job: Job) -> RadarJobItem:
-    classification, source, analysis = _effective_classification(session, job.id)
-    posting = _latest_posting(session, job.id)
+def _item_from_context(context: RadarReadContext, job: Job) -> RadarJobItem:
+    classification, source, analysis = _effective_from_context(context, job.id)
+    posting = context.postings.get(job.id)
     return RadarJobItem(
         id=job.id,
         title=job.canonical_title or (posting.title_raw if posting else None) or "Sin título",
-        company=_company_name(session, job),
+        company=_company_name_from_context(context, job),
         location=job.location_text or (posting.location_raw if posting else None),
         work_mode=job.work_mode.value,
         job_status=job.status.value,
@@ -212,11 +290,13 @@ def _item(session: Session, job: Job) -> RadarJobItem:
 
 @router.get("/summary", response_model=RadarSummary)
 def radar_summary(session: SessionDep) -> RadarSummary:
+    jobs = list(session.scalars(_active_jobs_query()))
+    context = _bulk_read_context(session, jobs)
     high = 0
     review = 0
     discarded = 0
-    for job in session.scalars(_active_jobs_query()):
-        classification, _, _ = _effective_classification(session, job.id)
+    for job in jobs:
+        classification, _, _ = _effective_from_context(context, job.id)
         if classification == Classification.HIGH_PRIORITY:
             high += 1
         elif classification == Classification.DISCARD:
@@ -255,15 +335,18 @@ def list_radar_jobs(
             )
         )
 
-    items: list[RadarJobItem] = []
-    for job in session.scalars(query):
-        classification, _, _ = _effective_classification(session, job.id)
-        if _matches_view(classification, view):
-            items.append(_item(session, job))
-        if len(items) >= limit:
-            break
-
-    return RadarJobList(items=items, total=len(items), view=view)
+    jobs = list(session.scalars(query))
+    context = _bulk_read_context(session, jobs)
+    matched_jobs = [
+        job
+        for job in jobs
+        if _matches_view(_effective_from_context(context, job.id)[0], view)
+    ]
+    return RadarJobList(
+        items=[_item_from_context(context, job) for job in matched_jobs[:limit]],
+        total=len(matched_jobs),
+        view=view,
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=RadarJobDetail)

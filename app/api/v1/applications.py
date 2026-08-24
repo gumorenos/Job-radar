@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.enums import ApplicationStage
@@ -129,12 +129,16 @@ def list_applications(
         .order_by(JobApplication.updated_at.desc())
         .limit(limit)
     )
+    count_query = select(func.count(JobApplication.id))
     if stage is not None:
         query = query.where(JobApplication.stage == stage)
+        count_query = count_query.where(JobApplication.stage == stage)
+
     rows = session.execute(query).all()
+    total = int(session.scalar(count_query) or 0)
     return ApplicationList(
         items=[_item(application, job, company) for application, job, company in rows],
-        total=len(rows),
+        total=total,
         stage=stage,
     )
 

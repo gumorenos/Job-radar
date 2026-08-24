@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from app.db.enums import WorkMode
-from app.domains.matching.fit import FitSignalInput, evaluate_positive_fit
+from app.domains.matching.fit import FitSignalInput, assess_career_move, evaluate_positive_fit
 
 
 def _facts(**overrides: object) -> FitSignalInput:
@@ -27,6 +27,7 @@ def test_role_and_core_area_create_strong_positive_fit() -> None:
     assert "People Analytics" in result.core_area_matches
     assert any("Rol objetivo" in strength for strength in result.strengths)
     assert any("Área foco" in strength for strength in result.strengths)
+    assert assess_career_move(result).startswith("Movimiento alineado:")
 
 
 def test_adjacent_area_stays_review_signal() -> None:
@@ -42,6 +43,7 @@ def test_adjacent_area_stays_review_signal() -> None:
     assert result.adjacent_area_matches
     assert result.high_priority is False
     assert any("adyacente" in gap for gap in result.gaps)
+    assert assess_career_move(result).startswith("Movimiento adyacente:")
 
 
 def test_core_area_without_target_role_is_not_high_priority() -> None:
@@ -55,6 +57,7 @@ def test_core_area_without_target_role_is_not_high_priority() -> None:
     assert not result.role_matches
     assert result.core_area_matches
     assert result.high_priority is False
+    assert assess_career_move(result).startswith("Área alineada con nivel por confirmar:")
 
 
 def test_unknown_salary_does_not_erase_strong_fit() -> None:
@@ -78,3 +81,20 @@ def test_generic_manager_title_needs_hr_people_context_in_title() -> None:
     assert not result.role_matches
     assert result.core_area_matches
     assert result.high_priority is False
+
+
+def test_career_move_assessment_never_invents_candidate_history() -> None:
+    result = evaluate_positive_fit(
+        _facts(
+            title="Analista de operaciones",
+            description="Procesos generales sin foco de RRHH.",
+            target_roles=("HR Business Partner",),
+            target_areas=("People Analytics",),
+            adjacent_areas=("People Operations",),
+        )
+    )
+
+    assessment = assess_career_move(result)
+    assert assessment.startswith("Movimiento no confirmado:")
+    assert "años" not in assessment
+    assert "experiencia" not in assessment
