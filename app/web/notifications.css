@@ -94,7 +94,7 @@
 
 .notification-item:hover,
 .notification-item:focus-visible {
-  background: var(--surface);
+  background: var(--panel-soft);
 }
 
 .notification-item:focus-visible {
