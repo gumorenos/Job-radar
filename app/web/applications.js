@@ -326,11 +326,13 @@ document.querySelectorAll("[data-application-stage]").forEach((button) => {
 
 applicationSearch.addEventListener("input", () => {
   clearTimeout(applicationSearchTimer);
+  applicationListRequestId += 1;
   resetApplicationPaging();
   applicationSearchTimer = setTimeout(loadApplicationList, 250);
 });
 applicationSearch.addEventListener("search", () => {
   clearTimeout(applicationSearchTimer);
+  applicationListRequestId += 1;
   resetApplicationPaging();
   loadApplicationList();
 });
