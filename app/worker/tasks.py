@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from app.db.enums import IngestionStatus, NotificationStatus, TaskStatus, TaskType
 from app.db.models import IngestionEvent, JobPosting, Notification, ProcessingTask
 from app.domains.ingestion.processor import normalize_ingestion_event
-from app.domains.matching.service import analyze_job, enqueue_job_analysis
+from app.domains.matching.queue import ensure_pending_job_analysis
+from app.domains.matching.service import analyze_job
 from app.domains.notifications.delivery import deliver_notification
 
 
@@ -89,29 +90,6 @@ def claim_next_task(session: Session, worker_id: str) -> ClaimedTask | None:
     )
 
 
-def _ensure_pending_job_analysis(session: Session, job_id: UUID) -> ProcessingTask:
-    """Reuse a pending analysis because it will read the latest committed job state.
-
-    A RUNNING analysis is intentionally not reused: another worker may already have read the
-    previous posting state, so a material update must leave one follow-up analysis pending.
-    """
-
-    pending = session.scalar(
-        select(ProcessingTask)
-        .where(
-            ProcessingTask.task_type == TaskType.ANALYZE_MATCH,
-            ProcessingTask.entity_type == "job",
-            ProcessingTask.entity_id == job_id,
-            ProcessingTask.status == TaskStatus.PENDING,
-        )
-        .order_by(ProcessingTask.created_at.asc())
-        .limit(1)
-    )
-    if pending is not None:
-        return pending
-    return enqueue_job_analysis(session, job_id)
-
-
 def execute_task(session: Session, claimed: ClaimedTask) -> None:
     if claimed.task_type == TaskType.NORMALIZE_INGESTION:
         normalized = normalize_ingestion_event(session, claimed.entity_id)
@@ -121,7 +99,7 @@ def execute_task(session: Session, claimed: ClaimedTask) -> None:
                 f"Job posting {normalized.posting_id} disappeared after normalization."
             )
         if normalized.analysis_required:
-            _ensure_pending_job_analysis(session, posting.job_id)
+            ensure_pending_job_analysis(session, posting.job_id)
     elif claimed.task_type == TaskType.ANALYZE_MATCH:
         analyze_job(session, claimed.entity_id)
     elif claimed.task_type == TaskType.SEND_NOTIFICATION:

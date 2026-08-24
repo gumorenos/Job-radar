@@ -84,8 +84,12 @@ def test_application_shell_serves_core_frontend_assets() -> None:
     assert ".cv-dialog" in cvs_css.text
     assert settings_js.status_code == 200
     assert "/api/v1/profile" in settings_js.text
+    assert "/api/v1/profile/reanalyze" in settings_js.text
+    assert "Reanalizar oportunidades" in settings_js.text
+    assert "Guarda primero los cambios del perfil" in settings_js.text
     assert settings_css.status_code == 200
     assert ".profile-settings" in settings_css.text
+    assert ".settings-save-actions" in settings_css.text
     assert feedback_insights_js.status_code == 200
     assert "Correcciones del Radar" in feedback_insights_js.text
     assert "/api/v1/feedback/insights" in feedback_insights_js.text

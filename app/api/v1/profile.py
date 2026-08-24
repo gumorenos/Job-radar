@@ -6,12 +6,15 @@ from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import CandidateProfile
+from app.db.enums import JobStatus
+from app.db.models import CandidateProfile, Job
 from app.db.session import get_session
+from app.domains.matching.queue import ensure_pending_job_analyses
 from app.domains.profiles.service import get_or_create_active_profile
 
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
@@ -105,6 +108,12 @@ class CandidateProfileUpdate(BaseModel):
         return cleaned
 
 
+class ProfileReanalysisResponse(BaseModel):
+    jobs_considered: int
+    enqueued: int
+    reused_pending: int
+
+
 def _view(profile: CandidateProfile) -> CandidateProfileView:
     return CandidateProfileView(
         id=profile.id,
@@ -156,3 +165,28 @@ def update_profile(
     session.commit()
     session.refresh(profile)
     return _view(profile)
+
+
+@router.post(
+    "/reanalyze",
+    response_model=ProfileReanalysisResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def reanalyze_active_jobs(session: SessionDep) -> ProfileReanalysisResponse:
+    # This is deliberately explicit rather than tied to PUT /profile. Saving preferences should
+    # not unexpectedly fan out worker tasks or produce classification-change notifications.
+    get_or_create_active_profile(session)
+    job_ids = list(
+        session.scalars(
+            select(Job.id)
+            .where(Job.status.in_((JobStatus.ACTIVE, JobStatus.UNKNOWN)))
+            .order_by(Job.last_seen_at.desc())
+        )
+    )
+    queued = ensure_pending_job_analyses(session, job_ids)
+    session.commit()
+    return ProfileReanalysisResponse(
+        jobs_considered=len(job_ids),
+        enqueued=queued.created,
+        reused_pending=queued.reused_pending,
+    )

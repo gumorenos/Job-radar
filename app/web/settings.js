@@ -19,6 +19,17 @@ const saveProfileSettings = document.getElementById("saveProfileSettings");
 const settingsUnsavedHint = document.getElementById("settingsUnsavedHint");
 const settingsSaveBar = profileSettingsForm.querySelector(".settings-save-bar");
 
+const reanalyzeProfileJobs = document.createElement("button");
+reanalyzeProfileJobs.type = "button";
+reanalyzeProfileJobs.id = "reanalyzeProfileJobs";
+reanalyzeProfileJobs.className = "secondary";
+reanalyzeProfileJobs.textContent = "Reanalizar oportunidades";
+reanalyzeProfileJobs.disabled = true;
+const settingsSaveActions = document.createElement("div");
+settingsSaveActions.className = "settings-save-actions";
+settingsSaveBar.insertBefore(settingsSaveActions, saveProfileSettings);
+settingsSaveActions.append(reanalyzeProfileJobs, saveProfileSettings);
+
 const fitFactsCard = document.createElement("section");
 fitFactsCard.className = "settings-card fit-facts-card";
 fitFactsCard.innerHTML = `
@@ -152,6 +163,7 @@ function renderProfile(profile) {
   updateRemoteFloor();
   profileLoaded = true;
   profileDirty = false;
+  reanalyzeProfileJobs.disabled = false;
   settingsUnsavedHint.textContent = "Los cambios se aplican al próximo análisis.";
 }
 
@@ -254,7 +266,7 @@ async function saveSettings(event) {
       body: JSON.stringify(payloadFromForm()),
     });
     renderProfile(profile);
-    profileSettingsStatus.textContent = "Configuración guardada.";
+    profileSettingsStatus.textContent = "Configuración guardada. Puedes reanalizar las oportunidades existentes cuando quieras.";
   } catch (error) {
     profileSettingsStatus.classList.add("error");
     profileSettingsStatus.textContent = error.message;
@@ -263,10 +275,41 @@ async function saveSettings(event) {
   }
 }
 
+async function reanalyzeExistingJobs() {
+  if (!profileLoaded || profileDirty) {
+    profileSettingsStatus.classList.add("error");
+    profileSettingsStatus.textContent = "Guarda primero los cambios del perfil antes de reanalizar.";
+    return;
+  }
+
+  reanalyzeProfileJobs.disabled = true;
+  profileSettingsStatus.classList.remove("error");
+  profileSettingsStatus.textContent = "Programando reanálisis…";
+  try {
+    const result = await profileApi("/api/v1/profile/reanalyze", { method: "POST" });
+    if (!Number(result.jobs_considered || 0)) {
+      profileSettingsStatus.textContent = "No hay oportunidades activas para reanalizar.";
+    } else {
+      profileSettingsStatus.textContent = (
+        `Reanálisis programado para ${Number(result.jobs_considered)} oportunidades: `
+        + `${Number(result.enqueued)} nuevas tareas y `
+        + `${Number(result.reused_pending)} ya estaban pendientes.`
+      );
+    }
+    await loadIngestionHealth();
+  } catch (error) {
+    profileSettingsStatus.classList.add("error");
+    profileSettingsStatus.textContent = error.message;
+  } finally {
+    reanalyzeProfileJobs.disabled = profileDirty || !profileLoaded;
+  }
+}
+
 function markDirty() {
   if (!profileLoaded) return;
   profileDirty = true;
-  settingsUnsavedHint.textContent = "Tienes cambios sin guardar.";
+  reanalyzeProfileJobs.disabled = true;
+  settingsUnsavedHint.textContent = "Tienes cambios sin guardar. Guarda antes de reanalizar.";
 }
 
 profileSettingsForm.addEventListener("input", (event) => {
@@ -276,6 +319,7 @@ profileSettingsForm.addEventListener("input", (event) => {
   markDirty();
 });
 profileSettingsForm.addEventListener("submit", saveSettings);
+reanalyzeProfileJobs.addEventListener("click", reanalyzeExistingJobs);
 window.addEventListener("hashchange", () => {
   if (settingsRouteActive()) {
     if (!profileLoaded || !profileDirty) loadProfileSettings();
