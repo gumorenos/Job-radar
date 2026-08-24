@@ -44,15 +44,20 @@ def clean_database() -> Generator[None]:
     _truncate_database()
 
 
-def _create_job() -> Job:
+def _create_job(
+    *,
+    title: str = "Strategic HR Business Partner",
+    company: str = "CRM QA Corp",
+    location: str = "Lima",
+) -> Job:
     now = datetime.now(UTC)
     with get_session_factory()() as session:
         job = Job(
-            canonical_title="Strategic HR Business Partner",
-            title_key="strategic hr business partner",
-            company_name_raw="CRM QA Corp",
+            canonical_title=title,
+            title_key=title.casefold(),
+            company_name_raw=company,
             company_is_confidential=False,
-            location_text="Lima",
+            location_text=location,
             work_mode=WorkMode.HYBRID,
             status=JobStatus.ACTIVE,
             first_seen_at=now,
@@ -113,6 +118,64 @@ def test_application_list_total_is_not_truncated_by_limit() -> None:
             response = client.post(f"/api/v1/applications/jobs/{job.id}")
             assert response.status_code == 200
         listing = client.get("/api/v1/applications?stage=TO_APPLY&limit=1")
+
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 3
+    assert len(listing.json()["items"]) == 1
+
+
+def test_application_search_matches_title_company_location_and_notes() -> None:
+    analytics = _create_job(
+        title="Senior People Analytics Analyst",
+        company="Alpha People",
+        location="Lima",
+    )
+    hrbp = _create_job(
+        title="Strategic HRBP",
+        company="Beta Talent",
+        location="Remote LATAM",
+    )
+
+    with TestClient(app) as client:
+        analytics_application = client.post(
+            f"/api/v1/applications/jobs/{analytics.id}"
+        ).json()["application"]
+        hrbp_application = client.post(f"/api/v1/applications/jobs/{hrbp.id}").json()[
+            "application"
+        ]
+        client.patch(
+            f"/api/v1/applications/{analytics_application['id']}",
+            json={"notes": "Referida por Ana para proceso prioritario"},
+        )
+        client.patch(
+            f"/api/v1/applications/{hrbp_application['id']}",
+            json={"notes": "Seguimiento con recruiter regional"},
+        )
+
+        by_title = client.get("/api/v1/applications?stage=TO_APPLY&q=analytics")
+        by_company = client.get("/api/v1/applications?stage=TO_APPLY&q=beta")
+        by_location = client.get("/api/v1/applications?stage=TO_APPLY&q=latam")
+        by_notes = client.get("/api/v1/applications?stage=TO_APPLY&q=ana")
+
+    assert by_title.status_code == 200
+    assert by_title.json()["total"] == 1
+    assert by_title.json()["items"][0]["job_id"] == str(analytics.id)
+    assert by_company.json()["items"][0]["job_id"] == str(hrbp.id)
+    assert by_location.json()["items"][0]["job_id"] == str(hrbp.id)
+    assert by_notes.json()["items"][0]["job_id"] == str(analytics.id)
+
+
+def test_application_search_total_is_exact_when_limit_truncates_results() -> None:
+    jobs = [
+        _create_job(title=f"People Analytics {index}", company=f"Company {index}")
+        for index in range(3)
+    ]
+
+    with TestClient(app) as client:
+        for job in jobs:
+            response = client.post(f"/api/v1/applications/jobs/{job.id}")
+            assert response.status_code == 200
+        listing = client.get("/api/v1/applications?stage=TO_APPLY&q=people&limit=1")
 
     assert listing.status_code == 200
     assert listing.json()["total"] == 3
