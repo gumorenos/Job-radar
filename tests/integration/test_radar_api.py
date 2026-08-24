@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 from app.db.enums import (
     Classification,
@@ -124,6 +124,49 @@ def test_unanalysed_jobs_are_visible_in_review_and_detail() -> None:
     assert detail_payload["description"] == "Description for HR Business Partner"
     assert detail_payload["latest_analysis"] is None
     assert detail_payload["postings"][0]["url"] == "https://example.com/jobs/1"
+
+
+def test_radar_total_is_exact_even_when_items_are_limited() -> None:
+    for index in range(3):
+        _create_job(
+            f"HR Business Partner {index}",
+            f"Example Corp {index}",
+            f"https://example.com/jobs/limit-{index}",
+        )
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/radar/jobs?view=review&limit=1")
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 3
+    assert len(response.json()["items"]) == 1
+
+
+def test_radar_summary_query_count_does_not_grow_with_number_of_jobs() -> None:
+    for index in range(8):
+        _create_job(
+            f"People Analytics Lead {index}",
+            f"Scale Corp {index}",
+            f"https://example.com/jobs/query-{index}",
+        )
+
+    statements = 0
+
+    def count_statement(*_: object, **__: object) -> None:
+        nonlocal statements
+        statements += 1
+
+    engine = get_engine()
+    with TestClient(app) as client:
+        event.listen(engine, "before_cursor_execute", count_statement)
+        try:
+            response = client.get("/api/v1/radar/summary")
+        finally:
+            event.remove(engine, "before_cursor_execute", count_statement)
+
+    assert response.status_code == 200
+    assert response.json()["review"] == 8
+    assert statements <= 6
 
 
 def test_human_feedback_overrides_system_classification_in_radar() -> None:
