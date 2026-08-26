@@ -8,6 +8,6 @@ def test_upgrade_checklist_requires_verified_backup_before_migrations() -> None:
 
     assert "BACKUP_VERIFY_OK" in checklist
     assert "BACKUP_OK" in checklist
-    assert "before changing `JOB_RADAR_IMAGE` or running migrations" in checklist
+    assert "Before changing `JOB_RADAR_IMAGE` or running migrations" in checklist
     assert "Do not remove the existing OpenClaw -> Notion path" in checklist
     assert "Do not downgrade Alembic automatically" in checklist
