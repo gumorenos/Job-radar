@@ -38,11 +38,13 @@ Real Oracle ARM64 deployment, browser QA, Cloudflare routing/Access, and live Op
 
 ## Production status
 
-The application is **not deployed to Job Radar production yet**. There is no live public Job Radar hostname, live OpenClaw-to-Job-Radar ingestion, or confirmed production Telegram delivery at this point.
+A prior Job Radar core release is already running on the Oracle ARM64 VPS in **localhost-only** mode. The last confirmed deployed baseline is `7659e77d38a2a61ecc352b49d2481d86d788a5e5`, with API on `127.0.0.1:8010`, PostgreSQL on `127.0.0.1:5432`, and the worker without a host port.
 
-The intended production API binding is loopback-only. Current deployment planning uses `127.0.0.1:8010`; PostgreSQL must never be exposed publicly. Cloudflare Access/app authentication is a prerequisite before public web exposure.
+The isolated OpenClaw bridge has passed staged installation and canary QA and is enabled, while the existing Notion/Supabase/Fast.io path remains in parallel. Real dual-write burn-in still requires a naturally arriving vacancy batch. There is no public Job Radar hostname or Cloudflare Access gate yet, and production Telegram delivery remains disabled/unconfirmed.
 
-See `docs/development.md`, `docs/core-completion.md`, `docs/production-deployment.md`, and `docs/qa-pending.md` for development, product-scope, deployment, and remaining QA details.
+Repository `main` is newer than the deployed core and must be upgraded through an immutable image, verified pre-upgrade backup, preflight, migrations, smoke, data validation, and canary. PostgreSQL must never be exposed publicly; Cloudflare Access/app authentication remains a prerequisite before public web exposure.
+
+See `docs/development.md`, `docs/core-completion.md`, `docs/production-status.md`, `docs/deployment.md`, `docs/release-upgrade-checklist.md`, and `docs/qa-pending.md` for development, product scope, operational truth, deployment, upgrade, and remaining QA details.
 
 ## Historical scripts and the original MVP
 
