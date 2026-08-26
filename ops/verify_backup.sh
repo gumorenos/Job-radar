@@ -23,32 +23,33 @@ if [[ ! -s "$DUMP_FILE" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$CHECKSUM_FILE" ]]; then
+  echo "Missing checksum sidecar: $CHECKSUM_FILE" >&2
+  exit 1
+fi
+
 compose=(docker compose --env-file "$ENV_FILE")
 "${compose[@]}" config >/dev/null
 
-checksum_status="not-provided"
-if [[ -f "$CHECKSUM_FILE" ]]; then
-  dump_dir="$(cd "$(dirname "$DUMP_FILE")" && pwd)"
-  dump_name="$(basename "$DUMP_FILE")"
-  checksum_dir="$(cd "$(dirname "$CHECKSUM_FILE")" && pwd)"
-  checksum_name="$(basename "$CHECKSUM_FILE")"
+dump_dir="$(cd "$(dirname "$DUMP_FILE")" && pwd)"
+dump_name="$(basename "$DUMP_FILE")"
+checksum_dir="$(cd "$(dirname "$CHECKSUM_FILE")" && pwd)"
+checksum_name="$(basename "$CHECKSUM_FILE")"
 
-  if [[ "$dump_dir" != "$checksum_dir" ]]; then
-    echo "Checksum sidecar must be stored beside the dump." >&2
-    exit 1
-  fi
-
-  if ! grep -Eq "^[0-9a-fA-F]{64}  ${dump_name//./\.}$" "$CHECKSUM_FILE"; then
-    echo "Checksum sidecar has an unexpected format." >&2
-    exit 1
-  fi
-
-  (
-    cd "$dump_dir"
-    sha256sum --check --status "$checksum_name"
-  )
-  checksum_status="verified"
+if [[ "$dump_dir" != "$checksum_dir" ]]; then
+  echo "Checksum sidecar must be stored beside the dump." >&2
+  exit 1
 fi
+
+if ! grep -Eq "^[0-9a-fA-F]{64}  ${dump_name//./\.}$" "$CHECKSUM_FILE"; then
+  echo "Checksum sidecar has an unexpected format." >&2
+  exit 1
+fi
+
+(
+  cd "$dump_dir"
+  sha256sum --check --status "$checksum_name"
+)
 
 # A readable archive catalog is necessary but not sufficient. Restore the full
 # dump into a disposable database to prove PostgreSQL can consume it.
@@ -57,13 +58,13 @@ cat "$DUMP_FILE" | "${compose[@]}" exec -T postgres pg_restore -l >/dev/null
 restore_db="jr_restore_$(date -u +%Y%m%d%H%M%S)_$$"
 restore_created=0
 
-cleanup() {
+cleanup_best_effort() {
   if [[ "$restore_created" -eq 1 ]]; then
     "${compose[@]}" exec -T postgres sh -c \
       'dropdb -U "$POSTGRES_USER" --if-exists "$1"' sh "$restore_db" >/dev/null 2>&1 || true
   fi
 }
-trap cleanup EXIT
+trap cleanup_best_effort EXIT
 
 "${compose[@]}" exec -T postgres sh -c \
   'createdb -U "$POSTGRES_USER" --template=template0 "$1"' sh "$restore_db"
@@ -110,9 +111,13 @@ if [[ "$core_tables" != "5" ]]; then
   exit 1
 fi
 
-cleanup
+if ! "${compose[@]}" exec -T postgres sh -c \
+  'dropdb -U "$POSTGRES_USER" --if-exists "$1"' sh "$restore_db" >/dev/null; then
+  echo "Disposable restore database could not be removed: $restore_db" >&2
+  exit 1
+fi
 restore_created=0
 trap - EXIT
 
-printf 'BACKUP_VERIFY_OK dump=%s checksum=%s alembic=%s public_tables=%s\n' \
-  "$(basename "$DUMP_FILE")" "$checksum_status" "$alembic_version" "$public_tables"
+printf 'BACKUP_VERIFY_OK dump=%s checksum=verified alembic=%s public_tables=%s\n' \
+  "$dump_name" "$alembic_version" "$public_tables"
