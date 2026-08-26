@@ -67,6 +67,7 @@ jobs:
           ops/preflight.sh
           ops/deploy.sh
           ops/backup.sh
+          ops/verify_backup.sh
           ops/smoke.sh
           ops/install_openclaw_bridge.sh
           ops/enable_openclaw_bridge.sh
