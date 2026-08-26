@@ -72,15 +72,35 @@ bash ops/smoke.sh .env.production
 
 The first deployment stays localhost-only until runtime validation passes.
 
-## Backup
+## Backup and restore verification
 
-Create and validate a local custom-format PostgreSQL dump before upgrades and at least daily while the system contains useful data:
+Create a verified local custom-format PostgreSQL dump before every upgrade and at least daily while the system contains useful data:
 
 ```bash
 bash ops/backup.sh .env.production /srv/job-radar/backups 14
 ```
 
-The script writes mode-0600 dumps, validates the archive with `pg_restore -l`, and removes dumps older than the retention period.
+A successful run now does all of the following before reporting `BACKUP_OK`:
+
+1. creates a PostgreSQL custom-format dump with mode `0600`;
+2. creates a `*.dump.sha256` sidecar with mode `0600`;
+3. verifies the SHA-256 checksum;
+4. checks that `pg_restore` can read the archive catalog;
+5. restores the full dump into a uniquely named disposable database on the same PostgreSQL service;
+6. verifies the restored Alembic version and core Job Radar tables;
+7. drops the disposable database;
+8. applies retention to both dumps and checksum sidecars.
+
+The restore drill never targets the primary `job_radar` database. If checksum verification, restore, schema verification, or cleanup cannot complete, the command exits non-zero and the upgrade must stop.
+
+An existing dump can be re-verified explicitly:
+
+```bash
+bash ops/verify_backup.sh \
+  .env.production \
+  /srv/job-radar/backups/job-radar-YYYYMMDDTHHMMSSZ.dump \
+  /srv/job-radar/backups/job-radar-YYYYMMDDTHHMMSSZ.dump.sha256
+```
 
 Local backup is not disaster recovery. External backup storage is still required before Job Radar becomes the sole copy of important job-search history.
 
@@ -118,7 +138,7 @@ Initial burn-in keeps the existing OpenClaw -> Notion path in parallel with Open
 - API/worker/PostgreSQL healthy on ARM64;
 - Alembic at head;
 - API/PostgreSQL loopback-only;
-- verified local backup exists;
+- checksum-verified backup passes a disposable full restore drill;
 - dashboard protected before external exposure;
 - OpenClaw canary ingestion succeeds without direct DB access;
 - unrelated VPS services unchanged;
