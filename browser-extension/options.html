@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Radar Capture · Configuración</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="options-page">
+  <main class="options-shell">
+    <p class="eyebrow">Job Radar Capture</p>
+    <h1>Conexión</h1>
+    <p class="muted">La clave se guarda solo en el almacenamiento local de esta extensión y se envía únicamente al origen que configures.</p>
+    <form id="settingsForm" class="stack">
+      <label>
+        <span>Origen de Job Radar</span>
+        <input id="apiBase" name="api_base" type="url" required placeholder="http://127.0.0.1:8010">
+        <small>HTTP solo se acepta para localhost/127.0.0.1. Para un servidor remoto se exige HTTPS.</small>
+      </label>
+      <label>
+        <span>API key</span>
+        <input id="apiKey" name="api_key" type="password" required autocomplete="off" spellcheck="false">
+      </label>
+      <div class="actions">
+        <span id="settingsStatus" class="status" role="status" aria-live="polite"></span>
+        <button type="submit" class="primary">Guardar conexión</button>
+      </div>
+    </form>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
