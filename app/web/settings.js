@@ -15,6 +15,9 @@ const targetAreas = document.getElementById("targetAreas");
 const adjacentAreas = document.getElementById("adjacentAreas");
 const dailyReviewTime = document.getElementById("dailyReviewTime");
 const profileTimezone = document.getElementById("profileTimezone");
+const hardRuleSeniority = document.getElementById("hardRuleSeniority");
+const hardRuleOnsiteOutsideLima = document.getElementById("hardRuleOnsiteOutsideLima");
+const hardRuleSalaryFloor = document.getElementById("hardRuleSalaryFloor");
 const saveProfileSettings = document.getElementById("saveProfileSettings");
 const settingsUnsavedHint = document.getElementById("settingsUnsavedHint");
 const settingsSaveBar = profileSettingsForm.querySelector(".settings-save-bar");
@@ -147,6 +150,7 @@ function updateRemoteFloor() {
 }
 
 function renderProfile(profile) {
+  const hardRules = profile.hard_rules || {};
   profileName.value = profile.name || "";
   salaryMinPen.value = profile.salary_min_pen ?? 7000;
   remoteSalaryMultiplier.value = profile.remote_salary_multiplier ?? 1.1;
@@ -160,6 +164,9 @@ function renderProfile(profile) {
   adjacentAreas.value = listToText(profile.adjacent_areas);
   dailyReviewTime.value = timeForInput(profile.daily_review_time);
   profileTimezone.value = profile.timezone || "America/Lima";
+  hardRuleSeniority.checked = hardRules.discard_disallowed_titles !== false;
+  hardRuleOnsiteOutsideLima.checked = hardRules.discard_onsite_outside_lima !== false;
+  hardRuleSalaryFloor.checked = hardRules.discard_published_salary_below_floor !== false;
   updateRemoteFloor();
   profileLoaded = true;
   profileDirty = false;
@@ -249,6 +256,11 @@ function payloadFromForm() {
     adjacent_areas: textToList(adjacentAreas.value),
     daily_review_time: dailyReviewTime.value,
     timezone: profileTimezone.value.trim(),
+    hard_rules: {
+      discard_disallowed_titles: hardRuleSeniority.checked,
+      discard_onsite_outside_lima: hardRuleOnsiteOutsideLima.checked,
+      discard_published_salary_below_floor: hardRuleSalaryFloor.checked,
+    },
   };
 }
 
