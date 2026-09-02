@@ -13,38 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  # Temporary diagnostic for PR #40. Remove before merge.
-  ruff-diagnostic:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        path:
-          - app/api/v1/profile.py
-          - app/domains/matching/fit.py
-          - app/domains/matching/rules.py
-          - app/domains/matching/service.py
-          - app/domains/profiles/service.py
-          - tests/unit/test_matching_rules.py
-          - tests/integration/test_matching_pipeline.py
-          - tests/integration/test_profile_api.py
-          - tests/unit/test_hard_rule_settings_assets.py
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-        with:
-          enable-cache: true
-          python-version: "3.14"
-
-      - name: Sync locked environment
-        run: uv sync --locked --dev
-
-      - name: Ruff changed file
-        run: uv run --locked ruff check "${{ matrix.path }}"
-
   quality:
     runs-on: ubuntu-latest
     services:
