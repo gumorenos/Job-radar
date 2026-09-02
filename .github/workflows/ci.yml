@@ -13,32 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  # Temporary PR #39 diagnostic matrix. Remove before merge.
-  ruff-diagnostic:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        rule: [B006, B008, B025, B904, B905]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-        with:
-          enable-cache: true
-          python-version: "3.14"
-
-      - name: Sync locked environment
-        run: uv sync --locked --dev
-
-      - name: Ruff evidence.py ${{ matrix.rule }}
-        run: >-
-          uv run --locked ruff check
-          --select "${{ matrix.rule }}"
-          app/api/v1/evidence.py
-
   quality:
     runs-on: ubuntu-latest
     services:
