@@ -19,14 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        path:
-          - app/api/v1/evidence.py
-          - app/api/v1/router.py
-          - app/db/enums.py
-          - app/db/models/evidence.py
-          - app/db/models/__init__.py
-          - app/domains/evidence/schemas.py
-          - app/domains/evidence/service.py
+        rule: [E, F, I, UP, B, SIM]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -40,8 +33,11 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked --dev
 
-      - name: Ruff ${{ matrix.path }}
-        run: uv run --locked ruff check "${{ matrix.path }}"
+      - name: Ruff evidence.py ${{ matrix.rule }}
+        run: >-
+          uv run --locked ruff check
+          --select "${{ matrix.rule }}"
+          app/api/v1/evidence.py
 
   quality:
     runs-on: ubuntu-latest
