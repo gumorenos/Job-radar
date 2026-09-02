@@ -151,7 +151,10 @@ def test_listing_filters_by_status_source_and_tag() -> None:
         assert verified.status_code == 200
 
         filtered = client.get(
-            "/api/v1/evidence?verification_status=VERIFIED&source_type=USER_INTERVIEW&tag=onboarding"
+            "/api/v1/evidence"
+            "?verification_status=VERIFIED"
+            "&source_type=USER_INTERVIEW"
+            "&tag=onboarding"
         )
 
     assert filtered.status_code == 200
