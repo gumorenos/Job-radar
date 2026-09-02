@@ -131,10 +131,10 @@ def _analysis_state(
         TaskStatus.RUNNING,
     }:
         return "PENDING", None
-    if latest_analysis is not None:
-        return "READY", latest_analysis
     if latest_task is not None and latest_task.status == TaskStatus.FAILED:
         return "FAILED", None
+    if latest_analysis is not None:
+        return "READY", latest_analysis
     return "UNAVAILABLE", None
 
 
@@ -252,6 +252,10 @@ def ingestion_job_result(ingestion_id: UUID, session: SessionDep) -> IngestionJo
     elif event.status == IngestionStatus.FAILED:
         analysis_status = "FAILED"
 
+    classification = None
+    if analysis is not None and analysis.classification is not None:
+        classification = analysis.classification.value
+
     return IngestionJobResult(
         ingestion_id=event.id,
         ingestion_status=event.status,
@@ -259,7 +263,7 @@ def ingestion_job_result(ingestion_id: UUID, session: SessionDep) -> IngestionJo
         job_id=job.id if job is not None else None,
         title=job.canonical_title if job is not None else None,
         company=job.company_name_raw if job is not None else None,
-        classification=analysis.classification.value if analysis is not None else None,
+        classification=classification,
         recommendation=analysis.recommendation if analysis is not None else None,
         analyzer_version=analysis.analyzer_version if analysis is not None else None,
         error_code=event.error_code,
