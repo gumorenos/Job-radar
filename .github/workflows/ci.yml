@@ -62,9 +62,9 @@ jobs:
         continue-on-error: true
         run: uv run --locked ruff check ops
 
-      - name: Ruff diagnostic - migration explicit
+      - name: Ruff diagnostic - migrations
         continue-on-error: true
-        run: uv run --locked ruff check migrations/versions/20260901_0007_career_evidence_bank.py
+        run: uv run --locked ruff check migrations
 
       - name: Ruff diagnostic - root Python
         continue-on-error: true
