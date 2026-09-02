@@ -15,8 +15,16 @@ from app.db.models.mixins import TimestampMixin
 class CareerEvidence(TimestampMixin, Base):
     __tablename__ = "career_evidence"
     __table_args__ = (
-        Index("ix_career_evidence_profile_status", "candidate_profile_id", "verification_status"),
-        Index("ix_career_evidence_profile_archived", "candidate_profile_id", "archived_at"),
+        Index(
+            "ix_career_evidence_profile_status",
+            "candidate_profile_id",
+            "verification_status",
+        ),
+        Index(
+            "ix_career_evidence_profile_archived",
+            "candidate_profile_id",
+            "archived_at",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -39,7 +47,11 @@ class CareerEvidence(TimestampMixin, Base):
     generated_by_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     source_reference: Mapped[str | None] = mapped_column(Text)
     source_excerpt: Mapped[str | None] = mapped_column(Text)
-    source_metadata: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
+    source_metadata: Mapped[dict[str, object]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+    )
     notes: Mapped[str | None] = mapped_column(Text)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
