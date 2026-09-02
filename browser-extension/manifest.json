@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Job Radar Capture",
+  "version": "0.1.0",
+  "description": "Captura una vacante de la pestaña activa y la envía a Job Radar para análisis.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "optional_host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_title": "Analizar con Job Radar",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}

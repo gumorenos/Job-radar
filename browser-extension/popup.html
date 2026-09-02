@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Radar Capture</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="popup-page">
+  <main class="popup-shell">
+    <header class="popup-header">
+      <div>
+        <p class="eyebrow">Job Radar</p>
+        <h1>Analizar vacante</h1>
+      </div>
+      <button id="openSettings" type="button" class="icon-button" title="Configuración" aria-label="Abrir configuración">⚙</button>
+    </header>
+
+    <section id="connectionWarning" class="notice warning hidden">
+      <strong>Falta configurar la conexión.</strong>
+      <span>Abre Configuración y guarda el origen y la API key.</span>
+    </section>
+
+    <section id="captureState" class="notice muted-notice">Leyendo únicamente la pestaña activa…</section>
+
+    <form id="captureForm" class="stack hidden">
+      <label>
+        <span>Puesto</span>
+        <input id="jobTitle" name="title" type="text" maxlength="300" required>
+      </label>
+      <label>
+        <span>Empresa</span>
+        <input id="jobCompany" name="company" type="text" maxlength="255">
+      </label>
+      <div class="two-columns">
+        <label>
+          <span>Ubicación</span>
+          <input id="jobLocation" name="location" type="text" maxlength="255">
+        </label>
+        <label>
+          <span>Modalidad</span>
+          <select id="jobWorkMode" name="work_mode">
+            <option value="">Sin confirmar</option>
+            <option value="REMOTE">Remoto</option>
+            <option value="HYBRID">Híbrido</option>
+            <option value="ONSITE">Presencial</option>
+          </select>
+        </label>
+      </div>
+      <label>
+        <span>Salario publicado</span>
+        <input id="jobSalary" name="salary_text" type="text" maxlength="500" placeholder="Déjalo vacío si la fuente no publica salario">
+      </label>
+      <label>
+        <span>Descripción capturada</span>
+        <textarea id="jobDescription" name="description" rows="8"></textarea>
+        <small id="extractorNote"></small>
+      </label>
+      <div class="source-line">
+        <span id="sourceLabel"></span>
+        <a id="sourceUrl" href="#" target="_blank" rel="noreferrer">Abrir fuente</a>
+      </div>
+      <p class="review-note">Revisa estos datos antes de enviarlos. Job Radar aplicará sus reglas y matching después de la normalización.</p>
+      <div class="actions vertical-actions">
+        <button id="sendCapture" type="submit" class="primary">Enviar a Job Radar</button>
+        <button id="recapture" type="button" class="secondary">Volver a capturar</button>
+      </div>
+    </form>
+
+    <section id="resultPanel" class="result-panel hidden" aria-live="polite">
+      <span id="resultStatus" class="status"></span>
+      <div id="resultCard" class="result-card hidden">
+        <div>
+          <span id="classificationBadge" class="classification-badge"></span>
+          <strong id="resultTitle"></strong>
+          <small id="resultCompany"></small>
+        </div>
+        <button id="openRadar" type="button" class="primary">Abrir en Radar</button>
+      </div>
+      <button id="refreshResult" type="button" class="secondary hidden">Consultar resultado</button>
+    </section>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

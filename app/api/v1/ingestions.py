@@ -11,8 +11,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.security import require_api_key
-from app.db.enums import IngestionStatus, TaskStatus
-from app.db.models import IngestionEvent, ProcessingTask
+from app.db.enums import IngestionStatus, TaskStatus, TaskType
+from app.db.models import (
+    IngestionEvent,
+    Job,
+    JobPosting,
+    MatchAnalysis,
+    PostingSighting,
+    ProcessingTask,
+)
 from app.db.session import get_session
 from app.domains.ingestion.schemas import JobIngestionRequest, JobIngestionResponse
 from app.domains.ingestion.service import IdempotencyConflictError, accept_job_ingestion
@@ -60,6 +67,19 @@ class RecentIngestionList(BaseModel):
     source: str | None
 
 
+class IngestionJobResult(BaseModel):
+    ingestion_id: UUID
+    ingestion_status: IngestionStatus
+    analysis_status: str
+    job_id: UUID | None
+    title: str | None
+    company: str | None
+    classification: str | None
+    recommendation: str | None
+    analyzer_version: str | None
+    error_code: str | None
+
+
 @dataclass
 class _SourceAccumulator:
     counts: dict[IngestionStatus, int]
@@ -69,6 +89,53 @@ class _SourceAccumulator:
 
 def _empty_status_counts() -> dict[IngestionStatus, int]:
     return {item: 0 for item in IngestionStatus}
+
+
+def _job_for_ingestion(session: Session, ingestion_id: UUID) -> Job | None:
+    sighting = session.scalar(
+        select(PostingSighting)
+        .where(PostingSighting.ingestion_event_id == ingestion_id)
+        .order_by(PostingSighting.seen_at.desc())
+        .limit(1)
+    )
+    if sighting is None:
+        return None
+    posting = session.get(JobPosting, sighting.job_posting_id)
+    if posting is None:
+        return None
+    return session.get(Job, posting.job_id)
+
+
+def _analysis_state(
+    session: Session,
+    job: Job,
+) -> tuple[str, MatchAnalysis | None]:
+    latest_task = session.scalar(
+        select(ProcessingTask)
+        .where(
+            ProcessingTask.task_type == TaskType.ANALYZE_MATCH,
+            ProcessingTask.entity_type == "job",
+            ProcessingTask.entity_id == job.id,
+        )
+        .order_by(ProcessingTask.scheduled_at.desc(), ProcessingTask.id.desc())
+        .limit(1)
+    )
+    latest_analysis = session.scalar(
+        select(MatchAnalysis)
+        .where(MatchAnalysis.job_id == job.id)
+        .order_by(MatchAnalysis.created_at.desc())
+        .limit(1)
+    )
+    if latest_task is not None and latest_task.status in {
+        TaskStatus.PENDING,
+        TaskStatus.RUNNING,
+    }:
+        return "PENDING", None
+    if latest_task is not None and latest_task.status == TaskStatus.FAILED:
+        return "FAILED", None
+    if latest_analysis is not None:
+        return "READY", latest_analysis
+    return "UNAVAILABLE", None
 
 
 @router.get("/summary", response_model=IngestionOverview)
@@ -162,6 +229,44 @@ def recent_ingestions(
         ],
         total=int(session.scalar(count_query) or 0),
         source=normalized_source,
+    )
+
+
+@router.get(
+    "/jobs/{ingestion_id}/result",
+    response_model=IngestionJobResult,
+    dependencies=[Depends(require_api_key)],
+)
+def ingestion_job_result(ingestion_id: UUID, session: SessionDep) -> IngestionJobResult:
+    event = session.get(IngestionEvent, ingestion_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Ingestion event not found.")
+
+    job = _job_for_ingestion(session, ingestion_id)
+    analysis_status = "UNAVAILABLE"
+    analysis = None
+    if job is not None:
+        analysis_status, analysis = _analysis_state(session, job)
+    elif event.status in {IngestionStatus.RECEIVED, IngestionStatus.PROCESSING}:
+        analysis_status = "PENDING"
+    elif event.status == IngestionStatus.FAILED:
+        analysis_status = "FAILED"
+
+    classification = None
+    if analysis is not None and analysis.classification is not None:
+        classification = analysis.classification.value
+
+    return IngestionJobResult(
+        ingestion_id=event.id,
+        ingestion_status=event.status,
+        analysis_status=analysis_status,
+        job_id=job.id if job is not None else None,
+        title=job.canonical_title if job is not None else None,
+        company=job.company_name_raw if job is not None else None,
+        classification=classification,
+        recommendation=analysis.recommendation if analysis is not None else None,
+        analyzer_version=analysis.analyzer_version if analysis is not None else None,
+        error_code=event.error_code,
     )
 
 
