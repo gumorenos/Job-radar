@@ -8,6 +8,7 @@ from app.db.models.emails import (
     EmailProcessingRun,
     InboundEmail,
 )
+from app.db.models.evidence import CareerEvidence
 from app.db.models.ingestion import IngestionEvent, ProcessingTask
 from app.db.models.jobs import Company, Job, JobPosting, PostingSighting
 from app.db.models.matching import ClassificationFeedback, MatchAnalysis
@@ -16,6 +17,7 @@ from app.db.models.profiles import CandidateProfile, CvVersion
 
 __all__ = [
     "CandidateProfile",
+    "CareerEvidence",
     "ClassificationFeedback",
     "Company",
     "CvVersion",

@@ -6,6 +6,7 @@ from app.api.v1.applications import router as applications_router
 from app.api.v1.cvs import router as cvs_router
 from app.api.v1.duplicates import router as duplicates_router
 from app.api.v1.emails import router as emails_router
+from app.api.v1.evidence import router as evidence_router
 from app.api.v1.feedback import router as feedback_router
 from app.api.v1.feedback_insights import router as feedback_insights_router
 from app.api.v1.health import router as health_router
@@ -25,4 +26,5 @@ api_router.include_router(feedback_insights_router)
 api_router.include_router(applications_router)
 api_router.include_router(cvs_router)
 api_router.include_router(profile_router)
+api_router.include_router(evidence_router)
 api_router.include_router(notifications_router)
