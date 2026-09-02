@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import CandidateProfile
+from app.domains.matching.rules import HardRuleToggles, with_hard_rule_toggles
 
 
 def get_or_create_active_profile(session: Session) -> CandidateProfile:
@@ -64,7 +65,10 @@ def get_or_create_active_profile(session: Session) -> CandidateProfile:
             "HRIS",
             "HR Systems",
         ],
-        rules={"source": "phase-0-confirmed-rules"},
+        rules=with_hard_rule_toggles(
+            {"source": "phase-0-confirmed-rules"},
+            HardRuleToggles(),
+        ),
     )
     session.add(profile)
     session.flush()

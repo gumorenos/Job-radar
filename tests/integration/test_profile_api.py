@@ -58,6 +58,7 @@ def _update_payload(current: dict[str, object]) -> dict[str, object]:
         "adjacent_areas": current["adjacent_areas"],
         "daily_review_time": current["daily_review_time"],
         "timezone": current["timezone"],
+        "hard_rules": current["hard_rules"],
     }
 
 
@@ -76,6 +77,11 @@ def test_get_profile_creates_single_default_profile() -> None:
     assert first.json()["skills"] == []
     assert first.json()["transferable_skills"] == []
     assert first.json()["timezone"] == "America/Lima"
+    assert first.json()["hard_rules"] == {
+        "discard_disallowed_titles": True,
+        "discard_onsite_outside_lima": True,
+        "discard_published_salary_below_floor": True,
+    }
 
     with get_session_factory()() as session:
         assert session.scalar(select(func.count()).select_from(CandidateProfile)) == 1
@@ -135,7 +141,45 @@ def test_update_profile_normalizes_lists_and_preserves_rule_metadata() -> None:
         assert profile.degrees == ["Administración", "Psicología"]
         assert profile.skills == ["People Analytics", "Power BI"]
         assert profile.transferable_skills == ["SQL"]
-        assert profile.rules == {"source": "phase-0-confirmed-rules"}
+        assert profile.rules == {
+            "source": "phase-0-confirmed-rules",
+            "hard_rules": {
+                "discard_disallowed_titles": True,
+                "discard_onsite_outside_lima": True,
+                "discard_published_salary_below_floor": True,
+            },
+        }
+
+
+def test_update_profile_changes_only_explicit_hard_rule_toggles() -> None:
+    with TestClient(app) as client:
+        current = client.get("/api/v1/profile").json()
+        payload = _update_payload(current)
+        payload["hard_rules"] = {
+            "discard_disallowed_titles": False,
+            "discard_onsite_outside_lima": True,
+            "discard_published_salary_below_floor": False,
+        }
+        response = client.put("/api/v1/profile", json=payload)
+
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["hard_rules"] == payload["hard_rules"]
+    assert updated["rules"]["source"] == "phase-0-confirmed-rules"
+    assert updated["rules"]["hard_rules"] == payload["hard_rules"]
+
+
+def test_update_profile_rejects_unknown_hard_rule() -> None:
+    with TestClient(app) as client:
+        current = client.get("/api/v1/profile").json()
+        payload = _update_payload(current)
+        payload["hard_rules"] = {
+            **current["hard_rules"],
+            "ai_suggested_auto_discard": True,
+        }
+        response = client.put("/api/v1/profile", json=payload)
+
+    assert response.status_code == 422
 
 
 def test_update_profile_rejects_invalid_multiplier() -> None:

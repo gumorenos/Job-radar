@@ -21,11 +21,12 @@ from app.domains.matching.rules import (
     MatchingRulePolicy,
     RuleResult,
     evaluate_business_rules,
+    hard_rule_toggles_from_metadata,
 )
 from app.domains.notifications.service import plan_match_notifications
 from app.domains.profiles.service import get_or_create_active_profile
 
-ANALYZER_VERSION = "rules-v5"
+ANALYZER_VERSION = "rules-v6"
 
 
 def _latest_posting(session: Session, job_id: UUID) -> JobPosting | None:
@@ -51,6 +52,7 @@ def _rule_payload(evaluation_results: tuple[RuleResult, ...]) -> list[dict[str, 
             "passed": item.passed,
             "severity": item.severity,
             "message": item.message,
+            "enabled": item.enabled,
         }
         for item in evaluation_results
     ]
@@ -99,9 +101,11 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
     posting = _latest_posting(session, job.id)
     salary_pen = monthly_salary_pen(posting)
     local_floor = Decimal(profile.salary_min_pen)
+    hard_rules = hard_rule_toggles_from_metadata(profile.rules)
     policy = MatchingRulePolicy(
         local_salary_min_pen=local_floor,
         remote_salary_min_pen=local_floor * Decimal(profile.remote_salary_multiplier),
+        hard_rules=hard_rules,
     )
     facts = MatchingRuleInput(
         title=job.canonical_title,
@@ -194,6 +198,7 @@ def analyze_job(session: Session, job_id: UUID) -> MatchAnalysis:
             "requires_review": evaluation.requires_review or structured_fit.requires_review,
             "business_rules_require_review": evaluation.requires_review,
             "structured_fit_requires_review": structured_fit.requires_review,
+            "hard_rules": hard_rules.as_dict(),
             "results": rule_items,
         },
         skill_analysis={

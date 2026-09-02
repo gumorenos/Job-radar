@@ -136,7 +136,7 @@ def test_five_vs_seven_years_forces_review_without_discarding_strong_fit() -> No
         assert job.required_skills == ["People Analytics", "Power BI"]
         assert analysis.classification == Classification.REVIEW
         assert analysis.recommendation == "REVISAR"
-        assert analysis.analyzer_version == "rules-v5"
+        assert analysis.analyzer_version == "rules-v6"
         assert analysis.rule_results["structured_fit_requires_review"] is True
         structured = cast(dict[str, object], analysis.skill_analysis["structured_fit"])
         experience = cast(dict[str, object], structured["experience"])
