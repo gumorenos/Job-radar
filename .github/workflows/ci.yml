@@ -11,9 +11,31 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
+  # Temporary PR #39 diagnostic matrix. Remove before merge.
+  ruff-diagnostic:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        path: [app, tests, ops, migrations]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.14"
+
+      - name: Sync locked environment
+        run: uv sync --locked --dev
+
+      - name: Ruff ${{ matrix.path }}
+        run: uv run --locked ruff check "${{ matrix.path }}"
+
   quality:
     runs-on: ubuntu-latest
     services:
@@ -50,27 +72,8 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked --dev
 
-      # Temporary diagnostic for PR #39. Remove before merge.
-      - name: Ruff with diagnostic comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set +e
-          uv run --locked ruff check . >/tmp/ruff-output.txt 2>&1
-          code=$?
-          set -e
-          cat /tmp/ruff-output.txt
-          if [ "$code" -ne 0 ]; then
-            {
-              echo 'Temporary CI diagnostic for Ruff:'
-              echo
-              echo '```text'
-              cat /tmp/ruff-output.txt
-              echo '```'
-            } >/tmp/ruff-comment.txt
-            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/ruff-comment.txt
-            exit "$code"
-          fi
+      - name: Ruff
+        run: uv run --locked ruff check .
 
       - name: Mypy
         run: uv run --locked mypy app tests
