@@ -31,14 +31,16 @@
   display: grid;
   gap: 5px;
 }
-.application-search-field > span {
+.application-search-field > span,
+.application-plan-fields span {
   color: var(--muted);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: .05em;
   font-weight: 750;
 }
-.application-search-field input {
+.application-search-field input,
+.application-plan-fields input {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
@@ -47,7 +49,8 @@
   background: #fff;
   color: var(--ink);
 }
-.application-search-field input:focus {
+.application-search-field input:focus,
+.application-plan-fields input:focus {
   outline: 2px solid var(--accent-soft);
   border-color: #aeb9e8;
 }
@@ -125,11 +128,41 @@
   color: var(--ink);
 }
 
+.application-plan {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dfe4ee;
+  border-radius: 8px;
+  background: #f8f9fc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.application-plan > div { min-width: 0; display: grid; gap: 2px; }
+.application-plan span,
+.cockpit-eyebrow {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.application-plan strong { font-size: 12px; color: #27344c; }
+.application-plan small { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.application-plan.overdue {
+  border-color: #e8b4b4;
+  background: #fff8f8;
+}
+.application-plan.overdue small { color: #a12828; font-weight: 700; }
+
+.application-followup-panel,
 .application-notes-panel {
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
+.application-followup-panel summary,
 .application-notes-panel summary {
   display: flex;
   align-items: center;
@@ -140,11 +173,55 @@
   font-weight: 700;
   cursor: pointer;
 }
+.application-followup-panel summary span,
 .application-notes-panel summary span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
 }
+.application-plan-fields {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(190px, 1fr);
+  gap: 10px;
+}
+.application-plan-fields label { display: grid; gap: 6px; }
+.application-plan-actions,
+.application-notes-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 9px;
+}
+.application-plan-status,
+.application-notes-status {
+  min-height: 18px;
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+.application-plan-status.error,
+.application-notes-status.error,
+.application-timeline-error { color: #a12828; }
+
+.application-timeline { margin-top: 10px; }
+.application-timeline ol {
+  margin: 0;
+  padding: 10px 10px 4px 28px;
+  border-radius: 8px;
+  background: #f8f9fc;
+}
+.application-timeline li { margin-bottom: 9px; padding-left: 3px; }
+.application-timeline strong,
+.application-timeline span,
+.application-timeline small { display: block; }
+.application-timeline strong { color: #27344c; font-size: 11px; }
+.application-timeline span { color: #49566b; font-size: 10px; margin-top: 2px; }
+.application-timeline small,
+.application-timeline-loading,
+.application-timeline-error { color: var(--muted); font-size: 10px; }
+
 .application-notes-field {
   display: grid;
   gap: 6px;
@@ -172,19 +249,6 @@
   outline: 2px solid var(--accent-soft);
   border-color: #aeb9e8;
 }
-.application-notes-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 9px;
-}
-.application-notes-status {
-  min-height: 18px;
-  color: var(--muted);
-  font-size: 11px;
-}
-.application-notes-status.error { color: #a12828; }
 
 .application-load-more {
   display: flex;
@@ -199,15 +263,41 @@
 }
 
 .detail-actions button { min-height: 36px; }
+.opportunity-cockpit {
+  margin: 14px 18px 0;
+  padding: 13px 14px;
+  border: 1px solid #d9dff0;
+  border-radius: 10px;
+  background: #f7f8fd;
+}
+.opportunity-cockpit.overdue { border-color: #e8b4b4; background: #fff8f8; }
+.opportunity-cockpit > p { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+.cockpit-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.cockpit-heading > div { display: grid; gap: 3px; }
+.cockpit-heading strong { color: #27344c; font-size: 13px; }
+.cockpit-heading small { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.opportunity-cockpit.overdue .cockpit-heading small { color: #a12828; font-weight: 700; }
+.cockpit-actions { display: flex; gap: 8px; margin-top: 10px; }
+.cockpit-actions button { min-height: 32px; }
 
 @media (max-width: 760px) {
   .application-search-toolbar { align-items: stretch; flex-direction: column; }
   .application-search-field { width: 100%; }
   .application-search-meta { white-space: normal; }
-  .application-row-main { align-items: stretch; flex-direction: column; gap: 12px; }
+  .application-row-main,
+  .application-plan,
+  .cockpit-heading { align-items: stretch; flex-direction: column; gap: 12px; }
+  .application-plan small,
+  .cockpit-heading small { white-space: normal; }
   .application-stage-control { min-width: 0; width: 100%; }
-  .application-notes-actions { align-items: stretch; flex-direction: column; }
-  .application-notes-actions .secondary { width: 100%; }
+  .application-plan-fields { grid-template-columns: 1fr; }
+  .application-plan-actions,
+  .application-notes-actions,
+  .cockpit-actions { align-items: stretch; flex-direction: column; }
+  .application-plan-actions .secondary,
+  .application-plan-actions .primary,
+  .application-notes-actions .secondary,
+  .cockpit-actions button { width: 100%; }
   .application-load-more { align-items: stretch; flex-direction: column; text-align: center; }
   .application-load-more .secondary { width: 100%; }
 }
