@@ -3,7 +3,14 @@ from decimal import Decimal
 import pytest
 
 from app.db.enums import Classification, WorkMode
-from app.domains.matching.rules import MatchingRuleInput, evaluate_business_rules
+from app.domains.matching.rules import (
+    HardRuleToggles,
+    MatchingRuleInput,
+    MatchingRulePolicy,
+    evaluate_business_rules,
+    hard_rule_toggles_from_metadata,
+    with_hard_rule_toggles,
+)
 
 
 @pytest.mark.parametrize(
@@ -22,6 +29,25 @@ def test_excluded_seniority_titles_force_discard(title: str) -> None:
     assert result.forced_classification == Classification.DISCARD
 
 
+def test_disabled_seniority_hard_rule_does_not_force_discard() -> None:
+    result = evaluate_business_rules(
+        MatchingRuleInput(
+            title="HR Assistant",
+            location="Lima",
+            work_mode=WorkMode.HYBRID,
+        ),
+        MatchingRulePolicy(
+            hard_rules=HardRuleToggles(discard_disallowed_titles=False),
+        ),
+    )
+
+    assert result.forced_classification is None
+    seniority = next(item for item in result.results if item.code == "SENIORITY_TITLE")
+    assert seniority.enabled is False
+    assert seniority.severity == "INFO"
+    assert seniority.passed is True
+
+
 def test_onsite_outside_lima_forces_discard() -> None:
     result = evaluate_business_rules(
         MatchingRuleInput(
@@ -32,6 +58,24 @@ def test_onsite_outside_lima_forces_discard() -> None:
     )
 
     assert result.forced_classification == Classification.DISCARD
+
+
+def test_disabled_onsite_location_hard_rule_does_not_force_discard() -> None:
+    result = evaluate_business_rules(
+        MatchingRuleInput(
+            title="HR Business Partner",
+            location="Arequipa, Perú",
+            work_mode=WorkMode.ONSITE,
+        ),
+        MatchingRulePolicy(
+            hard_rules=HardRuleToggles(discard_onsite_outside_lima=False),
+        ),
+    )
+
+    assert result.forced_classification is None
+    location = next(item for item in result.results if item.code == "ONSITE_LOCATION")
+    assert location.enabled is False
+    assert location.severity == "INFO"
 
 
 @pytest.mark.parametrize(
@@ -102,6 +146,27 @@ def test_local_published_salary_below_7000_forces_discard() -> None:
     assert result.forced_classification == Classification.DISCARD
 
 
+def test_disabled_salary_hard_rule_does_not_force_discard() -> None:
+    result = evaluate_business_rules(
+        MatchingRuleInput(
+            title="People Analytics Lead",
+            location="Lima",
+            work_mode=WorkMode.HYBRID,
+            monthly_salary_pen=Decimal("5000"),
+        ),
+        MatchingRulePolicy(
+            hard_rules=HardRuleToggles(discard_published_salary_below_floor=False),
+        ),
+    )
+
+    assert result.forced_classification is None
+    assert result.requires_review is False
+    salary = next(item for item in result.results if item.code == "PUBLISHED_SALARY")
+    assert salary.enabled is False
+    assert salary.severity == "INFO"
+    assert "desactivada" in salary.message
+
+
 def test_remote_international_salary_uses_7700_floor() -> None:
     result = evaluate_business_rules(
         MatchingRuleInput(
@@ -147,3 +212,28 @@ def test_degree_mismatch_and_experience_gap_are_warnings() -> None:
     assert result.requires_review is True
     warning_codes = {item.code for item in result.results if item.severity == "WARNING"}
     assert warning_codes == {"DEGREE_MISMATCH", "EXPERIENCE_GAP"}
+
+
+def test_legacy_profile_metadata_keeps_all_hard_rules_enabled() -> None:
+    toggles = hard_rule_toggles_from_metadata({"source": "legacy"})
+
+    assert toggles == HardRuleToggles()
+
+
+def test_hard_rule_metadata_round_trip_preserves_unrelated_metadata() -> None:
+    metadata = with_hard_rule_toggles(
+        {"source": "phase-0-confirmed-rules", "future": {"keep": True}},
+        HardRuleToggles(
+            discard_disallowed_titles=False,
+            discard_onsite_outside_lima=True,
+            discard_published_salary_below_floor=False,
+        ),
+    )
+
+    assert metadata["source"] == "phase-0-confirmed-rules"
+    assert metadata["future"] == {"keep": True}
+    assert hard_rule_toggles_from_metadata(metadata) == HardRuleToggles(
+        discard_disallowed_titles=False,
+        discard_onsite_outside_lima=True,
+        discard_published_salary_below_floor=False,
+    )
