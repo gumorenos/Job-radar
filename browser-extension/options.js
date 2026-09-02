@@ -6,7 +6,7 @@ const settingsStatus = document.getElementById("settingsStatus");
 function normalizeApiBase(rawValue) {
   const value = String(rawValue || "").trim();
   const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol)) {
+  if (!["http:", "https:"].includes(url.protocol)) {
     throw new Error("El origen debe usar HTTP o HTTPS.");
   }
   const localHost = url.hostname === "127.0.0.1" || url.hostname === "localhost";
@@ -19,10 +19,13 @@ function normalizeApiBase(rawValue) {
   return url.origin;
 }
 
+function originPermissionPattern(apiBase) {
+  const url = new URL(apiBase);
+  return `${url.protocol}//${url.hostname}/*`;
+}
+
 async function requestOriginPermission(apiBase) {
-  const originPattern = `${apiBase}/*`;
-  const alreadyGranted = await chrome.permissions.contains({ origins: [originPattern] });
-  if (alreadyGranted) return;
+  const originPattern = originPermissionPattern(apiBase);
   const granted = await chrome.permissions.request({ origins: [originPattern] });
   if (!granted) throw new Error("Chrome no concedió permiso para conectarse a ese origen.");
 }
