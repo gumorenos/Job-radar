@@ -104,6 +104,32 @@ def test_application_defaults_and_stage_transition_create_operational_plan() -> 
     assert events[1]["to_stage"] == "APPLIED"
 
 
+def test_repeating_same_stage_does_not_move_follow_up_or_append_stage_event() -> None:
+    job = _create_job()
+
+    with TestClient(app) as client:
+        application_id = client.post(f"/api/v1/applications/jobs/{job.id}").json()[
+            "application"
+        ]["id"]
+        first = client.patch(
+            f"/api/v1/applications/{application_id}",
+            json={"stage": "APPLIED"},
+        ).json()
+        second = client.patch(
+            f"/api/v1/applications/{application_id}",
+            json={"stage": "APPLIED"},
+        ).json()
+        timeline = client.get(f"/api/v1/applications/{application_id}/timeline").json()[
+            "items"
+        ]
+
+    assert second["applied_at"] == first["applied_at"]
+    assert second["next_action"] == first["next_action"]
+    assert second["next_action_due_at"] == first["next_action_due_at"]
+    assert second["follow_up_due_at"] == first["follow_up_due_at"]
+    assert [item["event_type"] for item in timeline] == ["CREATED", "STAGE_CHANGED"]
+
+
 def test_explicit_plan_overrides_stage_defaults_and_is_searchable() -> None:
     job = _create_job()
     due_at = datetime.now(UTC) + timedelta(days=3)
