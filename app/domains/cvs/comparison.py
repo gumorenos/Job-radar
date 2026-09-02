@@ -3,17 +3,29 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from typing import Literal
+
+CvChangeKind = Literal["ADDED", "REMOVED", "REPLACED"]
 
 _SEGMENT_SPLIT = re.compile(r"(?:\r?\n)+|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ0-9•\-])")
 _WHITESPACE = re.compile(r"\s+")
-_QUANTIFIED = re.compile(r"(?:\d[\d.,]*\s*%|\b\d[\d.,]*\b|S/\s*\d|US\$\s*\d|USD\s*\d|\$\s*\d)", re.I)
+_QUANTIFIED = re.compile(
+    r"(?:\d[\d.,]*\s*%|\b\d[\d.,]*\b|S/\s*\d|US\$\s*\d|USD\s*\d|\$\s*\d)",
+    re.I,
+)
 
 
 @dataclass(frozen=True)
 class CvTextChange:
-    kind: str
+    kind: CvChangeKind
     original: str | None
     proposed: str | None
+
+
+@dataclass(frozen=True)
+class CvSkillSignal:
+    skill: str
+    present: bool
 
 
 @dataclass(frozen=True)
@@ -88,9 +100,11 @@ def compare_cv_text(parent_text: str | None, current_text: str | None) -> CvComp
     )
 
 
-def required_skill_signals(required_skills: list[str], content_text: str | None) -> list[dict[str, object]]:
+def required_skill_signals(
+    required_skills: list[str], content_text: str | None
+) -> list[CvSkillSignal]:
     haystack = _key(content_text or "")
-    signals: list[dict[str, object]] = []
+    signals: list[CvSkillSignal] = []
     seen: set[str] = set()
     for skill in required_skills:
         label = _WHITESPACE.sub(" ", skill).strip()
@@ -98,5 +112,5 @@ def required_skill_signals(required_skills: list[str], content_text: str | None)
         if not key or key in seen:
             continue
         seen.add(key)
-        signals.append({"skill": label, "present": key in haystack})
+        signals.append(CvSkillSignal(skill=label, present=key in haystack))
     return signals
