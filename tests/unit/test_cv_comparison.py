@@ -1,4 +1,4 @@
-from app.domains.cvs.comparison import compare_cv_text, required_skill_signals
+from app.domains.cvs.comparison import CvSkillSignal, compare_cv_text, required_skill_signals
 
 
 def test_cv_comparison_tracks_replaced_added_removed_and_quality_signals() -> None:
@@ -27,6 +27,6 @@ def test_required_skill_signals_are_case_insensitive_without_single_score() -> N
     )
 
     assert signals == [
-        {"skill": "Power BI", "present": True},
-        {"skill": "Workforce Planning", "present": False},
+        CvSkillSignal(skill="Power BI", present=True),
+        CvSkillSignal(skill="Workforce Planning", present=False),
     ]
