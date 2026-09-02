@@ -93,7 +93,10 @@ function applicationDueState(value) {
     month: "short",
     year: "numeric",
   }).format(date);
-  return { label: overdue ? `Vencido · ${label}` : `Vence ${label}`, className: overdue ? "overdue" : "" };
+  return {
+    label: overdue ? `Vencido · ${label}` : `Vence ${label}`,
+    className: overdue ? "overdue" : "",
+  };
 }
 
 function toLocalDateTimeInput(value) {
@@ -466,7 +469,10 @@ async function syncRadarApplicationAction() {
   if (!actions || !header) return;
   const jobId = detailPanel.dataset.jobId || detailPanel.querySelector("#feedbackForm")?.dataset.jobId;
   if (!jobId) return;
-  if (detailPanel.dataset.applicationSyncJobId === jobId) return;
+  const alreadySynchronized = detailPanel.dataset.applicationSyncJobId === jobId
+    && actions.querySelector("[data-application-action]")
+    && detailPanel.querySelector(".opportunity-cockpit");
+  if (alreadySynchronized) return;
   detailPanel.dataset.applicationSyncJobId = jobId;
 
   let existing = null;
@@ -545,6 +551,13 @@ async function syncRadarApplicationAction() {
     });
   }
 }
+
+const baseLoadJobDetail = loadJobDetail;
+loadJobDetail = async function loadJobDetailWithApplicationContext(jobId) {
+  detailPanel.dataset.jobId = jobId;
+  detailPanel.dataset.applicationSyncJobId = "";
+  return baseLoadJobDetail(jobId);
+};
 
 document.querySelectorAll("[data-application-stage]").forEach((button) => {
   button.addEventListener("click", () => setApplicationStage(button.dataset.applicationStage));
