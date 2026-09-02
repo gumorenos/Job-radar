@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 EXTENSION = ROOT / "browser-extension"
+WEB = ROOT / "app" / "web"
 
 
 def test_manifest_v3_uses_click_scoped_capture_without_persistent_page_access() -> None:
@@ -50,3 +51,14 @@ def test_popup_exposes_review_fields_before_send() -> None:
         "sendCapture",
     ):
         assert f'id="{element_id}"' in html
+
+
+def test_extension_result_links_to_a_stable_radar_job_deep_link() -> None:
+    popup = (EXTENSION / "popup.js").read_text()
+    index = (WEB / "index.html").read_text()
+    deep_link = (WEB / "radar_deeplink.js").read_text()
+
+    assert '/app/#/radar/${currentResult.job_id}' in popup
+    assert '/app/radar_deeplink.js' in index
+    assert "loadJobDetail(jobId)" in deep_link
+    assert "^#\\/radar\\/" in deep_link
