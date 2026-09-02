@@ -76,13 +76,14 @@ function capturePage() {
     const currency = clean(value.currency);
     const unit = clean(value.value?.unitText || value.unitText);
     const nested = value.value?.value;
+    const scalarNested = typeof nested === "string" || typeof nested === "number" ? nested : null;
     const min = value.value?.minValue ?? (typeof nested === "number" ? nested : null);
     const max = value.value?.maxValue ?? null;
     const amount = min !== null && max !== null
       ? `${min}–${max}`
       : min !== null
         ? String(min)
-        : clean(nested);
+        : clean(scalarNested);
     return clean([currency, amount, unit].filter(Boolean).join(" ")) || null;
   };
   const sourceForHost = (hostname) => {
@@ -126,6 +127,7 @@ function capturePage() {
   const structuredWorkMode = clean(structured?.jobLocationType).toUpperCase();
 
   return {
+    capturedAt: new Date().toISOString(),
     pageUrl: location.href,
     pageTitle: document.title,
     source,
@@ -160,6 +162,11 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function originPermissionPattern(apiBase) {
+  const url = new URL(apiBase);
+  return `${url.protocol}//${url.hostname}/*`;
+}
+
 async function loadConnection() {
   const saved = await chrome.storage.local.get(["apiBase", "apiKey"]);
   if (!saved.apiBase || !saved.apiKey) {
@@ -167,7 +174,8 @@ async function loadConnection() {
     connectionWarning.classList.remove("hidden");
     return false;
   }
-  const granted = await chrome.permissions.contains({ origins: [`${saved.apiBase}/*`] });
+  const originPattern = originPermissionPattern(saved.apiBase);
+  const granted = await chrome.permissions.contains({ origins: [originPattern] });
   if (!granted) {
     connection = null;
     connectionWarning.classList.remove("hidden");
@@ -261,7 +269,7 @@ function reviewedPayload() {
     ingestion_source: "chrome_extension",
     posting_source: captured.source || null,
     external_id: captured.externalId || null,
-    captured_at: new Date().toISOString(),
+    captured_at: captured.capturedAt,
     job: {
       title,
       company: jobCompany.value.trim() || null,
