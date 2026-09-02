@@ -1,6 +1,6 @@
 """Persistence model registry used by SQLAlchemy and Alembic."""
 
-from app.db.models.applications import JobApplication
+from app.db.models.applications import JobApplication, JobApplicationEvent
 from app.db.models.duplicates import DuplicateCandidate
 from app.db.models.emails import (
     EmailAttachment,
@@ -29,6 +29,7 @@ __all__ = [
     "IngestionEvent",
     "Job",
     "JobApplication",
+    "JobApplicationEvent",
     "JobPosting",
     "MatchAnalysis",
     "Notification",

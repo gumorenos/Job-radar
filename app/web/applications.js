@@ -6,6 +6,13 @@ const applicationStageLabels = {
   CLOSED: "Cerrada",
 };
 
+const applicationEventLabels = {
+  CREATED: "Añadida a postulaciones",
+  STAGE_CHANGED: "Etapa actualizada",
+  PLAN_UPDATED: "Siguiente paso actualizado",
+  FOLLOW_UP_COMPLETED: "Seguimiento registrado",
+};
+
 const applicationPageSize = 50;
 let applicationStage = "TO_APPLY";
 let applicationSearchTimer = null;
@@ -23,7 +30,7 @@ applicationSearchToolbar.innerHTML = `
       id="applicationSearch"
       type="search"
       maxlength="200"
-      placeholder="Puesto, empresa, ubicación o notas"
+      placeholder="Puesto, empresa, ubicación, notas o siguiente paso"
       autocomplete="off"
     >
   </label>
@@ -75,6 +82,50 @@ function notesStateLabel(notes) {
   return notes ? "Con notas" : "Sin notas";
 }
 
+function applicationDueState(value) {
+  if (!value) return { label: "Sin fecha", className: "" };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { label: "Fecha inválida", className: "" };
+  const today = new Date();
+  const overdue = date.getTime() < today.getTime();
+  const label = new Intl.DateTimeFormat("es-PE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+  return {
+    label: overdue ? `Vencido · ${label}` : `Vence ${label}`,
+    className: overdue ? "overdue" : "",
+  };
+}
+
+function toLocalDateTimeInput(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+  return local.toISOString().slice(0, 16);
+}
+
+function fromLocalDateTimeInput(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function applicationPlanMarkup(item) {
+  if (!item.next_action && !item.next_action_due_at && !item.last_follow_up_at) return "";
+  const due = applicationDueState(item.next_action_due_at);
+  return `
+    <div class="application-plan ${due.className}">
+      <div>
+        <span>Siguiente paso</span>
+        <strong>${escapeHtml(item.next_action || "Sin acción definida")}</strong>
+      </div>
+      <small>${escapeHtml(due.label)}${item.last_follow_up_at ? ` · Último seguimiento ${formatDate(item.last_follow_up_at)}` : ""}</small>
+    </div>`;
+}
+
 function applicationRows(items) {
   return items.map((item) => `
     <article class="application-row" data-application-id="${item.id}">
@@ -97,6 +148,30 @@ function applicationRows(items) {
           </select>
         </label>
       </div>
+      ${applicationPlanMarkup(item)}
+      <details class="application-followup-panel" data-plan-panel="${item.id}">
+        <summary>
+          Siguiente paso y seguimiento
+          <span>${item.stage === "APPLIED" && item.follow_up_due_at ? applicationDueState(item.follow_up_due_at).label : "Planificar"}</span>
+        </summary>
+        <div class="application-plan-fields">
+          <label>
+            <span>Siguiente acción</span>
+            <input data-next-action="${item.id}" maxlength="500" value="${escapeHtml(item.next_action || "")}" placeholder="Ej. escribir al recruiter">
+          </label>
+          <label>
+            <span>Fecha objetivo</span>
+            <input data-next-action-due="${item.id}" type="datetime-local" value="${escapeHtml(toLocalDateTimeInput(item.next_action_due_at))}">
+          </label>
+        </div>
+        <div class="application-plan-actions">
+          <span class="application-plan-status" data-plan-status="${item.id}" role="status"></span>
+          ${item.stage === "APPLIED" ? `<button type="button" class="secondary" data-follow-up-complete="${item.id}">Seguimiento hecho</button>` : ""}
+          <button type="button" class="secondary" data-load-timeline="${item.id}">Ver historial</button>
+          <button type="button" class="primary" data-save-plan="${item.id}">Guardar siguiente paso</button>
+        </div>
+        <div class="application-timeline" data-timeline="${item.id}"></div>
+      </details>
       <details class="application-notes-panel">
         <summary>
           Notas de seguimiento
@@ -127,6 +202,15 @@ function bindApplicationRows() {
   });
   document.querySelectorAll("[data-save-notes]").forEach((button) => {
     button.addEventListener("click", () => saveApplicationNotes(button.dataset.saveNotes, button));
+  });
+  document.querySelectorAll("[data-save-plan]").forEach((button) => {
+    button.addEventListener("click", () => saveApplicationPlan(button.dataset.savePlan, button));
+  });
+  document.querySelectorAll("[data-follow-up-complete]").forEach((button) => {
+    button.addEventListener("click", () => markApplicationFollowUp(button.dataset.followUpComplete, button));
+  });
+  document.querySelectorAll("[data-load-timeline]").forEach((button) => {
+    button.addEventListener("click", () => loadApplicationTimeline(button.dataset.loadTimeline, button));
   });
   document.querySelectorAll("[data-job-link]").forEach((button) => {
     button.addEventListener("click", () => openApplicationInRadar(button.dataset.jobLink));
@@ -238,6 +322,86 @@ async function updateApplicationStage(applicationId, stage, select) {
   }
 }
 
+async function saveApplicationPlan(applicationId, button) {
+  const action = document.querySelector(`[data-next-action="${applicationId}"]`);
+  const due = document.querySelector(`[data-next-action-due="${applicationId}"]`);
+  const status = document.querySelector(`[data-plan-status="${applicationId}"]`);
+  const row = applicationLoadedItems.find((item) => item.id === applicationId);
+  if (!action || !due || !status || !row) return;
+
+  const dueAt = fromLocalDateTimeInput(due.value);
+  const payload = {
+    next_action: action.value.trim() || null,
+    next_action_due_at: dueAt,
+  };
+  if (row.stage === "APPLIED") payload.follow_up_due_at = dueAt;
+
+  button.disabled = true;
+  status.classList.remove("error");
+  status.textContent = "Guardando…";
+  try {
+    await applicationRequest(`/api/v1/applications/${applicationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    resetApplicationPaging();
+    await loadApplicationList();
+  } catch (error) {
+    button.disabled = false;
+    status.classList.add("error");
+    status.textContent = `No se pudo guardar: ${error.message}`;
+  }
+}
+
+async function markApplicationFollowUp(applicationId, button) {
+  const status = document.querySelector(`[data-plan-status="${applicationId}"]`);
+  button.disabled = true;
+  if (status) {
+    status.classList.remove("error");
+    status.textContent = "Registrando…";
+  }
+  try {
+    await applicationRequest(`/api/v1/applications/${applicationId}/follow-up-complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ next_follow_up_days: 7 }),
+    });
+    resetApplicationPaging();
+    await loadApplicationList();
+  } catch (error) {
+    button.disabled = false;
+    if (status) {
+      status.classList.add("error");
+      status.textContent = `No se pudo registrar: ${error.message}`;
+    }
+  }
+}
+
+async function loadApplicationTimeline(applicationId, button) {
+  const target = document.querySelector(`[data-timeline="${applicationId}"]`);
+  if (!target) return;
+  button.disabled = true;
+  target.innerHTML = `<span class="application-timeline-loading">Cargando historial…</span>`;
+  try {
+    const result = await applicationRequest(`/api/v1/applications/${applicationId}/timeline`);
+    target.innerHTML = result.items.length
+      ? `<ol>${result.items.map((event) => `
+          <li>
+            <strong>${escapeHtml(applicationEventLabels[event.event_type] || event.event_type)}</strong>
+            <span>${escapeHtml(event.note || "")}</span>
+            <small>${formatDate(event.occurred_at)}${event.from_stage || event.to_stage
+              ? ` · ${escapeHtml(event.from_stage ? applicationStageLabels[event.from_stage] || event.from_stage : "Inicio")} → ${escapeHtml(event.to_stage ? applicationStageLabels[event.to_stage] || event.to_stage : "—")}`
+              : ""}</small>
+          </li>`).join("")}</ol>`
+      : `<span class="application-timeline-loading">Sin eventos todavía.</span>`;
+    button.textContent = "Historial actualizado";
+  } catch (error) {
+    target.innerHTML = `<span class="application-timeline-error">${escapeHtml(error.message)}</span>`;
+    button.disabled = false;
+  }
+}
+
 async function saveApplicationNotes(applicationId, button) {
   const input = document.querySelector(`[data-notes-input="${applicationId}"]`);
   const status = document.querySelector(`[data-notes-status="${applicationId}"]`);
@@ -270,21 +434,60 @@ function openApplicationInRadar(jobId) {
   window.setTimeout(() => loadJobDetail(jobId), 0);
 }
 
-async function syncRadarApplicationAction() {
-  const form = detailPanel.querySelector("#feedbackForm");
-  const actions = detailPanel.querySelector(".detail-actions");
-  if (!form || !actions || actions.querySelector("[data-application-action]")) return;
+function cockpitMarkup(application) {
+  if (!application) {
+    return `
+      <section class="opportunity-cockpit">
+        <div>
+          <span class="cockpit-eyebrow">Tu proceso</span>
+          <strong>No está en Postulaciones</strong>
+        </div>
+        <p>Si decides perseguir esta oportunidad, añádela para gestionar siguiente paso, fechas e historial.</p>
+      </section>`;
+  }
+  const due = applicationDueState(application.next_action_due_at);
+  return `
+    <section class="opportunity-cockpit ${due.className}" data-application-cockpit="${application.id}">
+      <div class="cockpit-heading">
+        <div>
+          <span class="cockpit-eyebrow">Tu proceso · ${escapeHtml(applicationStageLabels[application.stage])}</span>
+          <strong>${escapeHtml(application.next_action || "Sin siguiente paso")}</strong>
+        </div>
+        <small>${escapeHtml(due.label)}</small>
+      </div>
+      ${application.last_follow_up_at ? `<p>Último seguimiento ${formatDate(application.last_follow_up_at)}.</p>` : ""}
+      <div class="cockpit-actions">
+        <button type="button" class="secondary" data-cockpit-manage="${application.stage}">Gestionar postulación</button>
+        ${application.stage === "APPLIED" ? `<button type="button" class="primary" data-cockpit-follow-up="${application.id}">Seguimiento hecho</button>` : ""}
+      </div>
+    </section>`;
+}
 
-  const jobId = form.dataset.jobId;
+async function syncRadarApplicationAction() {
+  const actions = detailPanel.querySelector(".detail-actions");
+  const header = detailPanel.querySelector(".detail-header");
+  if (!actions || !header) return;
+  const jobId = detailPanel.dataset.jobId || detailPanel.querySelector("#feedbackForm")?.dataset.jobId;
   if (!jobId) return;
+  const alreadySynchronized = detailPanel.dataset.applicationSyncJobId === jobId
+    && actions.querySelector("[data-application-action]")
+    && detailPanel.querySelector(".opportunity-cockpit");
+  if (alreadySynchronized) return;
+  detailPanel.dataset.applicationSyncJobId = jobId;
 
   let existing = null;
   try {
     existing = await applicationRequest(`/api/v1/applications/by-job/${jobId}`);
   } catch (error) {
+    detailPanel.dataset.applicationSyncJobId = "";
     if (error.status !== 404) return;
   }
 
+  detailPanel.querySelector(".opportunity-cockpit")?.remove();
+  header.insertAdjacentHTML("afterend", cockpitMarkup(existing));
+
+  const existingAction = actions.querySelector("[data-application-action]");
+  if (existingAction) existingAction.remove();
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.applicationAction = jobId;
@@ -307,18 +510,54 @@ async function syncRadarApplicationAction() {
         method: "POST",
       });
       existing = result.application;
-      button.disabled = false;
-      button.className = "secondary";
-      button.textContent = `En Postulaciones · ${applicationStageLabels[existing.stage]}`;
+      detailPanel.dataset.applicationSyncJobId = "";
+      await syncRadarApplicationAction();
     } catch (error) {
       button.disabled = false;
       button.textContent = "No se pudo añadir";
       button.title = error.message;
     }
   });
-
   actions.appendChild(button);
+
+  const manage = detailPanel.querySelector("[data-cockpit-manage]");
+  if (manage) {
+    manage.addEventListener("click", () => {
+      setApplicationStage(manage.dataset.cockpitManage, { reload: false });
+      window.location.hash = "#/applications";
+    });
+  }
+  const followUp = detailPanel.querySelector("[data-cockpit-follow-up]");
+  if (followUp) {
+    followUp.addEventListener("click", async () => {
+      followUp.disabled = true;
+      followUp.textContent = "Registrando…";
+      try {
+        existing = await applicationRequest(
+          `/api/v1/applications/${followUp.dataset.cockpitFollowUp}/follow-up-complete`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ next_follow_up_days: 7 }),
+          },
+        );
+        detailPanel.dataset.applicationSyncJobId = "";
+        await syncRadarApplicationAction();
+      } catch (error) {
+        followUp.disabled = false;
+        followUp.textContent = "No se pudo registrar";
+        followUp.title = error.message;
+      }
+    });
+  }
 }
+
+const baseLoadJobDetail = loadJobDetail;
+loadJobDetail = async function loadJobDetailWithApplicationContext(jobId) {
+  detailPanel.dataset.jobId = jobId;
+  detailPanel.dataset.applicationSyncJobId = "";
+  return baseLoadJobDetail(jobId);
+};
 
 document.querySelectorAll("[data-application-stage]").forEach((button) => {
   button.addEventListener("click", () => setApplicationStage(button.dataset.applicationStage));
