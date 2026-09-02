@@ -205,7 +205,7 @@ def evaluate_positive_fit(facts: FitSignalInput) -> FitEvaluation:
         gaps.append("No se detectó una de las áreas foco en el título o descripción.")
 
     if facts.monthly_salary_pen is not None:
-        strengths.append("El salario publicado superó las reglas mínimas de descarte.")
+        strengths.append("Hay salario publicado y normalizado a PEN mensual.")
     else:
         gaps.append("El salario no está publicado; no impide priorizar, pero queda como incógnita.")
 
