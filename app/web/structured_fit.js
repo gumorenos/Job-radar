@@ -112,7 +112,7 @@ function renderStructuredFit(analysis) {
     <section class="detail-section structured-fit-section">
       <div class="decision-section-heading">
         <h3>Requisitos vs perfil</h3>
-        <span>rules-v5</span>
+        <span>${escapeHtml(analysis.analyzer_version || analysis.rule_results?.analyzer_version || "rules")}</span>
       </div>
       ${rows}
       ${structuredSkillItems(structured.skill_items)}
