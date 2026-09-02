@@ -7,7 +7,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,10 +15,23 @@ from app.db.enums import JobStatus
 from app.db.models import CandidateProfile, Job
 from app.db.session import get_session
 from app.domains.matching.queue import ensure_pending_job_analyses
+from app.domains.matching.rules import (
+    HardRuleToggles,
+    hard_rule_toggles_from_metadata,
+    with_hard_rule_toggles,
+)
 from app.domains.profiles.service import get_or_create_active_profile
 
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+class HardRuleSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    discard_disallowed_titles: bool = True
+    discard_onsite_outside_lima: bool = True
+    discard_published_salary_below_floor: bool = True
 
 
 class CandidateProfileView(BaseModel):
@@ -37,6 +50,7 @@ class CandidateProfileView(BaseModel):
     adjacent_areas: list[str]
     daily_review_time: time
     timezone: str
+    hard_rules: HardRuleSettings
     rules: dict[str, object]
 
 
@@ -54,6 +68,7 @@ class CandidateProfileUpdate(BaseModel):
     adjacent_areas: list[str]
     daily_review_time: time
     timezone: str = Field(min_length=1, max_length=80)
+    hard_rules: HardRuleSettings | None = None
 
     @field_validator(
         "degrees",
@@ -115,6 +130,7 @@ class ProfileReanalysisResponse(BaseModel):
 
 
 def _view(profile: CandidateProfile) -> CandidateProfileView:
+    hard_rules = hard_rule_toggles_from_metadata(profile.rules)
     return CandidateProfileView(
         id=profile.id,
         name=profile.name,
@@ -131,6 +147,7 @@ def _view(profile: CandidateProfile) -> CandidateProfileView:
         adjacent_areas=list(profile.adjacent_areas),
         daily_review_time=profile.daily_review_time,
         timezone=profile.timezone,
+        hard_rules=HardRuleSettings(**hard_rules.as_dict()),
         rules=dict(profile.rules),
     )
 
@@ -162,6 +179,11 @@ def update_profile(
     profile.adjacent_areas = payload.adjacent_areas
     profile.daily_review_time = payload.daily_review_time
     profile.timezone = payload.timezone
+    if payload.hard_rules is not None:
+        profile.rules = with_hard_rule_toggles(
+            profile.rules,
+            HardRuleToggles(**payload.hard_rules.model_dump()),
+        )
     session.commit()
     session.refresh(profile)
     return _view(profile)
