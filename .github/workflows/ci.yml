@@ -49,6 +49,23 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked --dev
 
+      # Temporary per-file diagnostics for PR #39. Remove before merge.
+      - name: Ruff diagnostic - API
+        continue-on-error: true
+        run: uv run --locked ruff check app/api/v1/evidence.py app/api/v1/router.py
+
+      - name: Ruff diagnostic - models
+        continue-on-error: true
+        run: uv run --locked ruff check app/db/enums.py app/db/models/__init__.py app/db/models/evidence.py
+
+      - name: Ruff diagnostic - evidence domain
+        continue-on-error: true
+        run: uv run --locked ruff check app/domains/evidence
+
+      - name: Ruff diagnostic - evidence tests
+        continue-on-error: true
+        run: uv run --locked ruff check tests/unit/test_evidence_schemas.py tests/integration/test_evidence_api.py
+
       - name: Ruff
         run: uv run --locked ruff check .
 
