@@ -213,7 +213,10 @@ def get_cv(cv_id: UUID, session: SessionDep) -> CvItem:
 def compare_cv(cv_id: UUID, session: SessionDep) -> CvComparison:
     cv = _cv_or_404(session, cv_id)
     if cv.parent_cv_id is None:
-        raise HTTPException(status_code=409, detail="Este CV no tiene una versión padre para comparar.")
+        raise HTTPException(
+            status_code=409,
+            detail="Este CV no tiene una versión padre para comparar.",
+        )
     parent = _cv_or_404(session, cv.parent_cv_id)
     result = compare_cv_text(parent.content_text, cv.content_text)
     changes = [
