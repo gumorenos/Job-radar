@@ -12,6 +12,7 @@ from app.domains.evidence.schemas import (
     CareerEvidenceCreate,
     CareerEvidenceList,
     CareerEvidenceUpdate,
+    CareerEvidenceView,
     EvidenceVerificationRequest,
 )
 from app.domains.profiles.service import get_or_create_active_profile
@@ -81,7 +82,7 @@ def list_evidence(
         filters.append(CareerEvidence.tags.contains([tag]))
 
     total = session.scalar(select(func.count(CareerEvidence.id)).where(*filters)) or 0
-    items = list(
+    evidence_rows = list(
         session.scalars(
             select(CareerEvidence)
             .where(*filters)
@@ -90,6 +91,7 @@ def list_evidence(
             .offset(offset)
         )
     )
+    items = [CareerEvidenceView.model_validate(item) for item in evidence_rows]
     return CareerEvidenceList(items=items, total=total, limit=limit, offset=offset)
 
 
