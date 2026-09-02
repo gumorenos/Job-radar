@@ -121,12 +121,69 @@ def test_worker_discards_excluded_seniority_and_radar_reflects_it() -> None:
         notification_count = session.scalar(select(func.count()).select_from(Notification))
         assert analysis is not None
         assert analysis.classification == Classification.DISCARD
-        assert analysis.analyzer_version == "rules-v5"
+        assert analysis.analyzer_version == "rules-v6"
         assert analysis.career_move_assessment is not None
         assert notification_count == 0
         results = cast(list[dict[str, object]], analysis.rule_results["results"])
         seniority = next(item for item in results if item["code"] == "SENIORITY_TITLE")
         assert seniority["severity"] == "HARD"
+        assert seniority["enabled"] is True
+
+
+def test_disabled_onsite_rule_changes_real_worker_classification() -> None:
+    with TestClient(app) as client:
+        current = client.get("/api/v1/profile").json()
+        update_payload = {
+            "name": current["name"],
+            "salary_min_pen": current["salary_min_pen"],
+            "remote_salary_multiplier": current["remote_salary_multiplier"],
+            "experience_years": current["experience_years"],
+            "degrees": current["degrees"],
+            "skills": current["skills"],
+            "transferable_skills": current["transferable_skills"],
+            "target_locations": current["target_locations"],
+            "target_roles": current["target_roles"],
+            "target_areas": current["target_areas"],
+            "adjacent_areas": current["adjacent_areas"],
+            "daily_review_time": current["daily_review_time"],
+            "timezone": current["timezone"],
+            "hard_rules": {
+                **current["hard_rules"],
+                "discard_onsite_outside_lima": False,
+            },
+        }
+        updated = client.put("/api/v1/profile", json=update_payload)
+        assert updated.status_code == 200
+
+        _ingest(
+            client,
+            "matching-disabled-onsite-rule",
+            {
+                "title": "Senior People Analytics Analyst",
+                "company": "Regional Analytics Corp",
+                "location": "Arequipa, Perú",
+                "work_mode": "onsite",
+                "salary_text": "S/ 9,000",
+                "description": (
+                    "Lidera People Analytics y HR Analytics para decisiones estratégicas de "
+                    "gestión humana."
+                ),
+                "url": "https://example.com/jobs/onsite-arequipa-people-analytics",
+            },
+        )
+
+    with get_session_factory()() as session:
+        analysis = session.scalar(select(MatchAnalysis))
+        assert analysis is not None
+        assert analysis.classification == Classification.HIGH_PRIORITY
+        assert analysis.analyzer_version == "rules-v6"
+        hard_rules = cast(dict[str, object], analysis.rule_results["hard_rules"])
+        assert hard_rules["discard_onsite_outside_lima"] is False
+        results = cast(list[dict[str, object]], analysis.rule_results["results"])
+        location_rule = next(item for item in results if item["code"] == "ONSITE_LOCATION")
+        assert location_rule["enabled"] is False
+        assert location_rule["severity"] == "INFO"
+        assert "desactivada" in str(location_rule["message"])
 
 
 def test_worker_creates_review_analysis_and_daily_review_notification() -> None:
@@ -153,7 +210,7 @@ def test_worker_creates_review_analysis_and_daily_review_notification() -> None:
 
         assert analysis is not None
         assert analysis.classification == Classification.REVIEW
-        assert analysis.analyzer_version == "rules-v5"
+        assert analysis.analyzer_version == "rules-v6"
         assert analysis.career_move_assessment is not None
         assert analysis.confidence is not None
         assert profile is not None
@@ -211,7 +268,7 @@ def test_strong_role_and_core_area_are_promoted_to_high_priority() -> None:
         notifications = list(session.scalars(select(Notification)))
         assert analysis is not None
         assert analysis.classification == Classification.HIGH_PRIORITY
-        assert analysis.analyzer_version == "rules-v5"
+        assert analysis.analyzer_version == "rules-v6"
         assert analysis.career_move_assessment is not None
         assert analysis.career_move_assessment.startswith("Movimiento alineado:")
         assert analysis.recommendation == "PRIORIZAR"
@@ -253,6 +310,7 @@ def test_remote_latam_salary_below_remote_floor_is_discarded() -> None:
         results = cast(list[dict[str, object]], analysis.rule_results["results"])
         salary_rule = next(item for item in results if item["code"] == "PUBLISHED_SALARY")
         assert salary_rule["severity"] == "HARD"
+        assert salary_rule["enabled"] is True
 
 
 def test_generic_non_hr_manager_is_not_promoted_by_incidental_hr_text() -> None:
