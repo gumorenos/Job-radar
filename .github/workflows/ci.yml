@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   quality:
@@ -49,29 +50,27 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked --dev
 
-      # Temporary diagnostics for PR #39. Remove before merge.
-      - name: Ruff diagnostic - app
-        continue-on-error: true
-        run: uv run --locked ruff check app
-
-      - name: Ruff diagnostic - tests
-        continue-on-error: true
-        run: uv run --locked ruff check tests
-
-      - name: Ruff diagnostic - ops
-        continue-on-error: true
-        run: uv run --locked ruff check ops
-
-      - name: Ruff diagnostic - migrations
-        continue-on-error: true
-        run: uv run --locked ruff check migrations
-
-      - name: Ruff diagnostic - root Python
-        continue-on-error: true
-        run: uv run --locked ruff check '*.py'
-
-      - name: Ruff
-        run: uv run --locked ruff check .
+      # Temporary diagnostic for PR #39. Remove before merge.
+      - name: Ruff with diagnostic comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          uv run --locked ruff check . >/tmp/ruff-output.txt 2>&1
+          code=$?
+          set -e
+          cat /tmp/ruff-output.txt
+          if [ "$code" -ne 0 ]; then
+            {
+              echo 'Temporary CI diagnostic for Ruff:'
+              echo
+              echo '```text'
+              cat /tmp/ruff-output.txt
+              echo '```'
+            } >/tmp/ruff-comment.txt
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/ruff-comment.txt
+            exit "$code"
+          fi
 
       - name: Mypy
         run: uv run --locked mypy app tests
