@@ -25,17 +25,23 @@ from app.domains.evidence.service import (
 
 router = APIRouter(prefix="/api/v1/evidence", tags=["evidence"])
 SessionDep = Annotated[Session, Depends(get_session)]
+VerificationStatusQuery = Annotated[EvidenceVerificationStatus | None, Query()]
+SourceTypeQuery = Annotated[EvidenceSourceType | None, Query()]
+TagQuery = Annotated[str | None, Query(max_length=80)]
+IncludeArchivedQuery = Annotated[bool, Query()]
+LimitQuery = Annotated[int, Query(ge=1, le=200)]
+OffsetQuery = Annotated[int, Query(ge=0)]
 
 
 @router.get("", response_model=CareerEvidenceList)
 def evidence_list(
     session: SessionDep,
-    verification_status: EvidenceVerificationStatus | None = Query(default=None),
-    source_type: EvidenceSourceType | None = Query(default=None),
-    tag: str | None = Query(default=None, max_length=80),
-    include_archived: bool = Query(default=False),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
+    verification_status: VerificationStatusQuery = None,
+    source_type: SourceTypeQuery = None,
+    tag: TagQuery = None,
+    include_archived: IncludeArchivedQuery = False,
+    limit: LimitQuery = 50,
+    offset: OffsetQuery = 0,
 ) -> CareerEvidenceList:
     cleaned_tag = tag.strip() if tag else None
     return list_evidence(
