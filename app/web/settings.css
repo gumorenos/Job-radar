@@ -27,7 +27,8 @@
 .settings-card-heading h3 { margin: 0 0 5px; font-size: 16px; }
 .settings-card-heading p,
 .settings-derived,
-.rules-summary-card li {
+.rules-summary-card li,
+.hard-rule-safety {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
@@ -63,6 +64,41 @@
 .settings-derived { margin-top: 12px; }
 .rules-summary-card ul { margin: 0; padding-left: 20px; }
 .rules-summary-card li + li { margin-top: 5px; }
+
+.hard-rule-list {
+  display: grid;
+  gap: 9px;
+}
+.hard-rule-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+.hard-rule-toggle:hover { border-color: #b8c1e4; }
+.hard-rule-toggle:focus-within {
+  outline: 2px solid var(--accent-soft);
+  border-color: #aeb9e8;
+}
+.hard-rule-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.hard-rule-toggle span { display: grid; gap: 3px; }
+.hard-rule-toggle strong { font-size: 13px; line-height: 1.35; }
+.hard-rule-toggle small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.hard-rule-safety {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
 
 .ingestion-health { display: grid; gap: 8px; }
 .ingestion-source-row {
@@ -118,6 +154,7 @@
 @media (max-width: 760px) {
   .settings-columns { grid-template-columns: 1fr; }
   .settings-card { padding: 15px; }
+  .hard-rule-toggle { padding: 11px; }
   .ingestion-source-row { align-items: flex-start; flex-direction: column; gap: 8px; }
   .ingestion-source-metrics { flex-wrap: wrap; justify-content: flex-start; white-space: normal; }
   .settings-save-bar { bottom: 8px; align-items: stretch; flex-direction: column; }
