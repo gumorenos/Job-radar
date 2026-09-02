@@ -118,7 +118,10 @@ def update_evidence(
             raise ValueError(f"{field} no puede ser nulo.")
         setattr(evidence, field, value)
 
-    if fields & _CLAIM_FIELDS and evidence.verification_status != EvidenceVerificationStatus.UNVERIFIED:
+    if (
+        fields & _CLAIM_FIELDS
+        and evidence.verification_status != EvidenceVerificationStatus.UNVERIFIED
+    ):
         evidence.verification_status = EvidenceVerificationStatus.UNVERIFIED
         evidence.reviewed_at = None
         evidence.verified_at = None
