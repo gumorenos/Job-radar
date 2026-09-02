@@ -61,6 +61,23 @@ class Confidence(StrEnum):
     HIGH = "HIGH"
 
 
+class EvidenceSourceType(StrEnum):
+    MANUAL = "MANUAL"
+    CV = "CV"
+    USER_INTERVIEW = "USER_INTERVIEW"
+    DOCUMENT = "DOCUMENT"
+    LINKEDIN = "LINKEDIN"
+    IMPORTED = "IMPORTED"
+    DERIVED_AI = "DERIVED_AI"
+
+
+class EvidenceVerificationStatus(StrEnum):
+    UNVERIFIED = "UNVERIFIED"
+    PARTIAL = "PARTIAL"
+    VERIFIED = "VERIFIED"
+    USER_CANNOT_CONFIRM = "USER_CANNOT_CONFIRM"
+
+
 class FeedbackReason(StrEnum):
     SALARY = "SALARY"
     SENIORITY = "SENIORITY"
