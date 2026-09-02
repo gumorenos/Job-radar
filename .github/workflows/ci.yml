@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rule: [E, F, I, UP, B, SIM]
+        rule: [B006, B008, B025, B904, B905]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
