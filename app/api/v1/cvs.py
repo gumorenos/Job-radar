@@ -238,7 +238,7 @@ def compare_cv(cv_id: UUID, session: SessionDep) -> CvComparison:
                 title=job.canonical_title or "Sin título",
                 company=job.company_name_raw,
                 required_skills=[
-                    CvRequirementSignal(**signal)
+                    CvRequirementSignal(skill=signal.skill, present=signal.present)
                     for signal in required_skill_signals(job.required_skills, cv.content_text)
                 ],
             )
