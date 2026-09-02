@@ -15,8 +15,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.enums import CvApprovalStatus
-from app.db.models import CvVersion
+from app.db.models import CvVersion, Job
 from app.db.session import get_session
+from app.domains.cvs.comparison import compare_cv_text, required_skill_signals
 from app.domains.cvs.storage import (
     MAX_CV_FILE_BYTES,
     CvFileError,
@@ -39,6 +40,7 @@ ApprovalDecision = Literal["APPROVED", "REJECTED"]
 class CvCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     parent_cv_id: UUID | None = None
+    tailored_for_job_id: UUID | None = None
     is_base: bool = False
     activate: bool = False
     generated_by_ai: bool = False
@@ -56,6 +58,7 @@ class CvItem(BaseModel):
     id: UUID
     candidate_profile_id: UUID
     parent_cv_id: UUID | None
+    tailored_for_job_id: UUID | None
     name: str
     slug: str
     version: int
@@ -79,6 +82,46 @@ class CvList(BaseModel):
     total: int
 
 
+class CvComparisonChange(BaseModel):
+    kind: Literal["ADDED", "REMOVED", "REPLACED"]
+    original: str | None
+    proposed: str | None
+    needs_human_verification: bool
+
+
+class CvRequirementSignal(BaseModel):
+    skill: str
+    present: bool
+
+
+class CvJobContext(BaseModel):
+    job_id: UUID
+    title: str
+    company: str | None
+    required_skills: list[CvRequirementSignal]
+
+
+class CvComparisonSummary(BaseModel):
+    unchanged_segments: int
+    added_segments: int
+    removed_segments: int
+    replaced_segments: int
+    parent_word_count: int
+    current_word_count: int
+    quantified_statement_count: int
+
+
+class CvComparison(BaseModel):
+    cv_id: UUID
+    parent_cv_id: UUID
+    generated_by_ai: bool
+    parent_name: str
+    current_name: str
+    summary: CvComparisonSummary
+    changes: list[CvComparisonChange]
+    job_context: CvJobContext | None
+
+
 def _clean_optional(value: str | None) -> str | None:
     if value is None:
         return None
@@ -98,6 +141,7 @@ def _item(cv: CvVersion) -> CvItem:
         id=cv.id,
         candidate_profile_id=cv.candidate_profile_id,
         parent_cv_id=cv.parent_cv_id,
+        tailored_for_job_id=cv.tailored_for_job_id,
         name=cv.name,
         slug=cv.slug,
         version=cv.version,
@@ -135,6 +179,13 @@ def _storage_error(exc: CvFileError) -> HTTPException:
     return HTTPException(status_code=422, detail=str(exc))
 
 
+def _comparison_change_counts(changes: list[CvComparisonChange]) -> tuple[int, int, int]:
+    added = sum(1 for item in changes if item.kind == "ADDED")
+    removed = sum(1 for item in changes if item.kind == "REMOVED")
+    replaced = sum(1 for item in changes if item.kind == "REPLACED")
+    return added, removed, replaced
+
+
 @router.get("", response_model=CvList)
 def list_cvs(session: SessionDep) -> CvList:
     profile = get_or_create_active_profile(session)
@@ -158,6 +209,60 @@ def get_cv(cv_id: UUID, session: SessionDep) -> CvItem:
     return _item(_cv_or_404(session, cv_id))
 
 
+@router.get("/{cv_id}/comparison", response_model=CvComparison)
+def compare_cv(cv_id: UUID, session: SessionDep) -> CvComparison:
+    cv = _cv_or_404(session, cv_id)
+    if cv.parent_cv_id is None:
+        raise HTTPException(status_code=409, detail="Este CV no tiene una versión padre para comparar.")
+    parent = _cv_or_404(session, cv.parent_cv_id)
+    result = compare_cv_text(parent.content_text, cv.content_text)
+    changes = [
+        CvComparisonChange(
+            kind=item.kind,
+            original=item.original,
+            proposed=item.proposed,
+            needs_human_verification=(
+                cv.generated_by_ai and item.kind in {"ADDED", "REPLACED"}
+            ),
+        )
+        for item in result.changes
+    ]
+    added, removed, replaced = _comparison_change_counts(changes)
+
+    job_context = None
+    if cv.tailored_for_job_id is not None:
+        job = session.get(Job, cv.tailored_for_job_id)
+        if job is not None:
+            job_context = CvJobContext(
+                job_id=job.id,
+                title=job.canonical_title or "Sin título",
+                company=job.company_name_raw,
+                required_skills=[
+                    CvRequirementSignal(**signal)
+                    for signal in required_skill_signals(job.required_skills, cv.content_text)
+                ],
+            )
+
+    return CvComparison(
+        cv_id=cv.id,
+        parent_cv_id=parent.id,
+        generated_by_ai=cv.generated_by_ai,
+        parent_name=parent.name,
+        current_name=cv.name,
+        summary=CvComparisonSummary(
+            unchanged_segments=result.unchanged_count,
+            added_segments=added,
+            removed_segments=removed,
+            replaced_segments=replaced,
+            parent_word_count=result.parent_word_count,
+            current_word_count=result.current_word_count,
+            quantified_statement_count=result.quantified_statement_count,
+        ),
+        changes=changes,
+        job_context=job_context,
+    )
+
+
 @router.post("", response_model=CvItem, status_code=status.HTTP_201_CREATED)
 def create_cv(payload: CvCreate, session: SessionDep) -> CvItem:
     profile = get_or_create_active_profile(session)
@@ -169,6 +274,15 @@ def create_cv(payload: CvCreate, session: SessionDep) -> CvItem:
         parent = _cv_or_404(session, payload.parent_cv_id)
         if parent.candidate_profile_id != profile.id:
             raise HTTPException(status_code=409, detail="El CV padre pertenece a otro perfil.")
+
+    if payload.tailored_for_job_id is not None:
+        if parent is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Un CV asociado a una vacante debe derivarse de una versión padre.",
+            )
+        if session.get(Job, payload.tailored_for_job_id) is None:
+            raise HTTPException(status_code=404, detail="Vacante de tailoring no encontrada.")
 
     current_version = session.scalar(
         select(func.max(CvVersion.version)).where(
@@ -206,6 +320,7 @@ def create_cv(payload: CvCreate, session: SessionDep) -> CvItem:
     cv = CvVersion(
         candidate_profile_id=profile.id,
         parent_cv_id=parent.id if parent is not None else None,
+        tailored_for_job_id=payload.tailored_for_job_id,
         name=name,
         slug=slug,
         version=version,
