@@ -122,14 +122,22 @@
             </div>
           </section>
           <section class="settings-card rules-summary-card">
-            <div class="settings-card-heading"><h3>Reglas duras v1</h3><p>Las reglas duras nunca son anuladas por el matching positivo.</p></div>
-            <ul>
-              <li>Prácticas, asistente o junior → Descartar.</li>
-              <li>Presencial fuera de Lima Metropolitana → Descartar.</li>
-              <li>Salario local publicado por debajo del mínimo → Descartar.</li>
-              <li>Salario remoto/internacional publicado por debajo del mínimo remoto → Descartar.</li>
-              <li>Salario desconocido, grado o experiencia parcial → no descartar automáticamente.</li>
-            </ul>
+            <div class="settings-card-heading"><h3>Reglas duras</h3><p>Solo las reglas activadas pueden forzar Descartar. Si desactivas una, la condición seguirá visible en el análisis y el resto del matching decidirá.</p></div>
+            <div class="hard-rule-list">
+              <label class="hard-rule-toggle">
+                <input id="hardRuleSeniority" name="discard_disallowed_titles" type="checkbox">
+                <span><strong>Descartar prácticas, asistente o junior</strong><small>Evita oportunidades cuyo título indique un nivel claramente inferior al objetivo.</small></span>
+              </label>
+              <label class="hard-rule-toggle">
+                <input id="hardRuleOnsiteOutsideLima" name="discard_onsite_outside_lima" type="checkbox">
+                <span><strong>Descartar presencial fuera de Lima Metropolitana</strong><small>Aplica solo cuando la vacante es 100% presencial y la ubicación está fuera de Lima/Callao.</small></span>
+              </label>
+              <label class="hard-rule-toggle">
+                <input id="hardRuleSalaryFloor" name="discard_published_salary_below_floor" type="checkbox">
+                <span><strong>Descartar salario publicado bajo el mínimo</strong><small>Usa el mínimo local o el mínimo remoto/internacional calculado desde tu perfil.</small></span>
+              </label>
+            </div>
+            <p class="hard-rule-safety">Salario desconocido o sin conversión segura, brechas de grado/experiencia y señales de industria pueden llevar a Revisar, pero no se convierten en hard rules. Una sugerencia de IA nunca se activa sola.</p>
           </section>
           <div class="settings-save-bar"><span id="settingsUnsavedHint">Los cambios se aplican al próximo análisis.</span><button class="primary" id="saveProfileSettings" type="submit">Guardar configuración</button></div>
         </form>
