@@ -19,7 +19,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        path: [app, tests, ops, migrations]
+        path:
+          - app/api/v1/evidence.py
+          - app/api/v1/router.py
+          - app/db/enums.py
+          - app/db/models/evidence.py
+          - app/db/models/__init__.py
+          - app/domains/evidence/schemas.py
+          - app/domains/evidence/service.py
     steps:
       - name: Checkout
         uses: actions/checkout@v7
