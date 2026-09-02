@@ -89,6 +89,9 @@ function cvApprovalLabel(item) {
 
 function cvActions(item) {
   const actions = [];
+  if (item.parent_cv_id) {
+    actions.push(`<button class="secondary" data-cv-action="compare" data-cv-id="${item.id}">Comparar cambios</button>`);
+  }
   if (item.approval_status === "DRAFT") {
     actions.push(`<button class="primary" data-cv-action="approve" data-cv-id="${item.id}">Aprobar</button>`);
     actions.push(`<button class="secondary" data-cv-action="reject" data-cv-id="${item.id}">Rechazar</button>`);
@@ -123,6 +126,7 @@ function renderCvItems(items) {
       item.is_active ? '<span class="tag active-tag">Activo</span>' : "",
       `<span class="tag muted-tag">${cvEscape(cvApprovalLabel(item))}</span>`,
       item.generated_by_ai ? '<span class="tag ai-tag">IA</span>' : "",
+      item.tailored_for_job_id ? '<span class="tag tailored-tag">Para vacante</span>' : "",
     ].filter(Boolean).join("");
     const target = [item.target_role, item.target_area].filter(Boolean).map(cvEscape).join(" · ");
     const preview = item.content_text
@@ -133,7 +137,7 @@ function renderCvItems(items) {
       : '<p class="cv-file-meta muted">Sin archivo binario adjunto.</p>';
 
     return `
-      <article class="cv-card ${item.is_active ? "active-cv" : ""}">
+      <article class="cv-card ${item.is_active ? "active-cv" : ""}" data-cv-card-id="${item.id}">
         <div class="cv-card-tags">${tags}</div>
         <div class="cv-card-title">
           <div>
@@ -145,10 +149,93 @@ function renderCvItems(items) {
         <p class="cv-preview">${preview}</p>
         ${fileMeta}
         ${item.generated_by_ai && item.approval_status === "DRAFT" ? `
-          <p class="cv-warning">Este borrador fue generado por IA y no puede activarse hasta que lo apruebes.</p>` : ""}
+          <p class="cv-warning">Este borrador fue generado por IA. Revisa sus cambios y evidencia antes de aprobarlo; no puede activarse automáticamente.</p>` : ""}
+        <div class="cv-comparison-slot" data-cv-comparison-slot="${item.id}"></div>
         <div class="cv-card-actions">${cvActions(item)}</div>
       </article>`;
   }).join("");
+}
+
+function cvChangeMarkup(change) {
+  const label = {
+    ADDED: "Añadido",
+    REMOVED: "Eliminado",
+    REPLACED: "Reescrito",
+  }[change.kind] || change.kind;
+  const original = change.original
+    ? `<div><span>Antes</span><p>${cvEscape(change.original)}</p></div>`
+    : "";
+  const proposed = change.proposed
+    ? `<div><span>Ahora</span><p>${cvEscape(change.proposed)}</p></div>`
+    : "";
+  const warning = change.needs_human_verification
+    ? '<strong class="cv-claim-warning">Revisar evidencia antes de aprobar</strong>'
+    : "";
+  return `
+    <li class="cv-change ${change.kind.toLowerCase()}">
+      <div class="cv-change-heading"><strong>${cvEscape(label)}</strong>${warning}</div>
+      ${original}${proposed}
+    </li>`;
+}
+
+function cvRequirementMarkup(jobContext) {
+  if (!jobContext) return "";
+  const skills = Array.isArray(jobContext.required_skills) ? jobContext.required_skills : [];
+  return `
+    <div class="cv-job-signals">
+      <strong>${cvEscape(jobContext.title)}${jobContext.company ? ` · ${cvEscape(jobContext.company)}` : ""}</strong>
+      <p>Skills requeridos detectados en la vacante; se muestran como señales, no como un score.</p>
+      ${skills.length ? `<div class="cv-skill-signals">${skills.map((item) => `
+        <span class="${item.present ? "present" : "missing"}">${item.present ? "✓" : "!"} ${cvEscape(item.skill)}</span>`).join("")}</div>` : '<small>La vacante no tiene skills estructurados.</small>'}
+    </div>`;
+}
+
+function cvComparisonMarkup(comparison) {
+  const summary = comparison.summary;
+  const changes = Array.isArray(comparison.changes) ? comparison.changes : [];
+  return `
+    <section class="cv-comparison-panel">
+      <div class="cv-comparison-heading">
+        <div><strong>Comparación con versión padre</strong><small>${cvEscape(comparison.parent_name)} → ${cvEscape(comparison.current_name)}</small></div>
+        <span>${summary.current_word_count} palabras</span>
+      </div>
+      <div class="cv-comparison-stats">
+        <span>+${summary.added_segments} añadidos</span>
+        <span>~${summary.replaced_segments} reescritos</span>
+        <span>−${summary.removed_segments} eliminados</span>
+        <span>${summary.quantified_statement_count} frases cuantificadas</span>
+      </div>
+      ${cvRequirementMarkup(comparison.job_context)}
+      ${changes.length ? `<ol class="cv-change-list">${changes.slice(0, 16).map(cvChangeMarkup).join("")}</ol>` : '<p class="cv-comparison-empty">No hay cambios de texto detectables frente al padre.</p>'}
+      ${changes.length > 16 ? `<small class="cv-comparison-more">Se muestran 16 de ${changes.length} cambios.</small>` : ""}
+      ${comparison.generated_by_ai ? '<p class="cv-comparison-safety">Las afirmaciones nuevas de un borrador IA se marcan para revisión humana. Job Radar no afirma automáticamente que estén sustentadas.</p>' : ""}
+    </section>`;
+}
+
+async function showCvComparison(item, button) {
+  const slot = document.querySelector(`[data-cv-comparison-slot="${item.id}"]`);
+  if (!slot) return;
+  if (slot.dataset.loaded === "true") {
+    slot.innerHTML = "";
+    slot.dataset.loaded = "false";
+    button.textContent = "Comparar cambios";
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Comparando…";
+  try {
+    const comparison = await cvApi(`/api/v1/cvs/${item.id}/comparison`);
+    slot.innerHTML = cvComparisonMarkup(comparison);
+    slot.dataset.loaded = "true";
+    button.textContent = "Ocultar comparación";
+  } catch (error) {
+    cvStatus.textContent = `No se pudo comparar: ${error.message}`;
+    cvStatus.classList.add("error");
+    button.textContent = "Comparar cambios";
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function loadCvs(options = {}) {
@@ -265,10 +352,15 @@ async function chooseAndAttachFile(item) {
   picker.click();
 }
 
-async function applyCvAction(action, item) {
+async function applyCvAction(action, item, button) {
   cvStatus.textContent = "Actualizando CV…";
   cvStatus.classList.remove("error");
   try {
+    if (action === "compare") {
+      cvStatus.textContent = "";
+      await showCvComparison(item, button);
+      return;
+    }
     if (action === "version") {
       openNewCvDialog(item);
       cvStatus.textContent = "";
@@ -303,7 +395,7 @@ cvGrid.addEventListener("click", (event) => {
   if (!button) return;
   const item = cvItems.get(button.dataset.cvId);
   if (!item) return;
-  applyCvAction(button.dataset.cvAction, item);
+  applyCvAction(button.dataset.cvAction, item, button);
 });
 
 addCvButton.addEventListener("click", () => openNewCvDialog());

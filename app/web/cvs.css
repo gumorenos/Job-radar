@@ -58,7 +58,94 @@
 .muted-tag { background: #f0f2f5; color: var(--muted); }
 .active-tag { background: #e8f7f0; color: #126d4d; }
 .ai-tag { background: #f3edff; color: #6840a5; }
+.tailored-tag { background: #eef7ff; color: #1d5f91; }
 .cv-empty { margin-top: 0; }
+
+.cv-comparison-slot:not(:empty) { margin: 2px 0 14px; }
+.cv-comparison-panel {
+  padding: 12px;
+  border: 1px solid #dde3ef;
+  border-radius: 9px;
+  background: #fafbfe;
+}
+.cv-comparison-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cv-comparison-heading > div { display: grid; gap: 2px; }
+.cv-comparison-heading strong { color: #27344c; font-size: 12px; }
+.cv-comparison-heading small,
+.cv-comparison-heading > span { color: var(--muted); font-size: 10px; }
+.cv-comparison-heading > span { white-space: nowrap; }
+.cv-comparison-stats {
+  margin-top: 9px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.cv-comparison-stats span {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #eef1f7;
+  color: #4a566c;
+  font-size: 9px;
+  font-weight: 700;
+}
+.cv-job-signals {
+  margin-top: 10px;
+  padding: 9px;
+  border-radius: 8px;
+  background: #f1f6fb;
+}
+.cv-job-signals > strong { color: #27344c; font-size: 11px; }
+.cv-card .cv-job-signals > p { margin: 4px 0 7px; font-size: 10px; }
+.cv-skill-signals { display: flex; gap: 5px; flex-wrap: wrap; }
+.cv-skill-signals span {
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 700;
+}
+.cv-skill-signals .present { background: #e8f7f0; color: #126d4d; }
+.cv-skill-signals .missing { background: #fff3e8; color: #8a5310; }
+.cv-change-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+.cv-change {
+  padding: 8px;
+  border: 1px solid #e3e7ef;
+  border-radius: 7px;
+  background: #fff;
+}
+.cv-change-heading { display: flex; justify-content: space-between; gap: 8px; }
+.cv-change-heading > strong { color: #4a566c; font-size: 9px; text-transform: uppercase; }
+.cv-claim-warning { color: #9a5b00; font-size: 9px; text-align: right; }
+.cv-change > div:not(.cv-change-heading) { margin-top: 6px; }
+.cv-change > div:not(.cv-change-heading) > span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.cv-card .cv-change p { margin: 2px 0 0; color: #37445a; font-size: 10px; }
+.cv-change.added { border-left: 3px solid #78b89e; }
+.cv-change.removed { border-left: 3px solid #cf9696; }
+.cv-change.replaced { border-left: 3px solid #9aa9df; }
+.cv-card .cv-comparison-empty,
+.cv-card .cv-comparison-safety,
+.cv-comparison-more { margin: 9px 0 0; font-size: 10px; }
+.cv-card .cv-comparison-safety {
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: #fff7e8;
+  color: #835400;
+}
 
 .cv-dialog {
   width: min(680px, calc(100vw - 28px));
@@ -103,4 +190,8 @@
 @media (max-width: 760px) {
   .cv-form-columns { grid-template-columns: 1fr; }
   .cv-dialog form { padding: 16px; }
+  .cv-comparison-heading,
+  .cv-change-heading { flex-direction: column; }
+  .cv-comparison-heading > span { white-space: normal; }
+  .cv-claim-warning { text-align: left; }
 }

@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -56,6 +57,7 @@ class CvVersion(TimestampMixin, Base):
             "version",
             name="uq_cv_versions_profile_slug_version",
         ),
+        Index("ix_cv_versions_tailored_job", "tailored_for_job_id"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -64,6 +66,9 @@ class CvVersion(TimestampMixin, Base):
     )
     parent_cv_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("cv_versions.id", ondelete="SET NULL")
+    )
+    tailored_for_job_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL")
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(120), nullable=False)
