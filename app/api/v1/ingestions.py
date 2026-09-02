@@ -110,26 +110,31 @@ def _analysis_state(
     session: Session,
     job: Job,
 ) -> tuple[str, MatchAnalysis | None]:
-    active_task = session.scalar(
-        select(ProcessingTask.id)
+    latest_task = session.scalar(
+        select(ProcessingTask)
         .where(
             ProcessingTask.task_type == TaskType.ANALYZE_MATCH,
             ProcessingTask.entity_type == "job",
             ProcessingTask.entity_id == job.id,
-            ProcessingTask.status.in_((TaskStatus.PENDING, TaskStatus.RUNNING)),
         )
+        .order_by(ProcessingTask.scheduled_at.desc(), ProcessingTask.id.desc())
         .limit(1)
     )
-    latest = session.scalar(
+    latest_analysis = session.scalar(
         select(MatchAnalysis)
         .where(MatchAnalysis.job_id == job.id)
         .order_by(MatchAnalysis.created_at.desc())
         .limit(1)
     )
-    if active_task is not None:
-        return "PENDING", latest
-    if latest is not None:
-        return "READY", latest
+    if latest_task is not None and latest_task.status in {
+        TaskStatus.PENDING,
+        TaskStatus.RUNNING,
+    }:
+        return "PENDING", None
+    if latest_analysis is not None:
+        return "READY", latest_analysis
+    if latest_task is not None and latest_task.status == TaskStatus.FAILED:
+        return "FAILED", None
     return "UNAVAILABLE", None
 
 
