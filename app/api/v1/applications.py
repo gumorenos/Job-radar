@@ -361,17 +361,18 @@ def update_application(
     stage_changed = False
 
     if "stage" in explicit_fields and payload.stage is not None:
-        now = datetime.now(UTC)
         stage_changed = payload.stage != application.stage
-        application.stage = payload.stage
-        if payload.stage in {
-            ApplicationStage.APPLIED,
-            ApplicationStage.INTERVIEW,
-            ApplicationStage.OFFER,
-        } and application.applied_at is None:
-            application.applied_at = now
-        application.closed_at = now if payload.stage == ApplicationStage.CLOSED else None
-        _apply_stage_defaults(application, payload.stage, now, explicit_fields)
+        if stage_changed:
+            now = datetime.now(UTC)
+            application.stage = payload.stage
+            if payload.stage in {
+                ApplicationStage.APPLIED,
+                ApplicationStage.INTERVIEW,
+                ApplicationStage.OFFER,
+            } and application.applied_at is None:
+                application.applied_at = now
+            application.closed_at = now if payload.stage == ApplicationStage.CLOSED else None
+            _apply_stage_defaults(application, payload.stage, now, explicit_fields)
 
     if "notes" in explicit_fields:
         application.notes = (
