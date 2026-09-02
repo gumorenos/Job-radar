@@ -57,9 +57,10 @@ jobs:
 
       - name: Frontend JavaScript syntax
         run: |
-          for file in app/web/*.js; do
+          for file in app/web/*.js browser-extension/*.js; do
             node --check "$file"
           done
+          node -e 'JSON.parse(require("fs").readFileSync("browser-extension/manifest.json", "utf8"))'
 
       - name: Deployment shell syntax
         run: >-
