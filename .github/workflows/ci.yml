@@ -34,6 +34,7 @@ jobs:
       JOB_RADAR_APP_ENV: test
       JOB_RADAR_DATABASE_URL: postgresql+psycopg://job_radar:job_radar_ci@127.0.0.1:5432/job_radar
       JOB_RADAR_API_KEY: ci-only-test-key
+      JOB_RADAR_EXTENSION_API_KEY: ci-only-extension-key
       JOB_RADAR_STORAGE_PATH: /tmp/job-radar-ci-storage
 
     steps:
