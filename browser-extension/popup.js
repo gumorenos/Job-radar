@@ -167,9 +167,25 @@ function originPermissionPattern(apiBase) {
   return `${url.protocol}//${url.hostname}/*`;
 }
 
+function isLocalApiBase(apiBase) {
+  const url = new URL(apiBase);
+  return url.hostname === "127.0.0.1" || url.hostname === "localhost";
+}
+
 async function loadConnection() {
-  const saved = await chrome.storage.local.get(["apiBase", "apiKey"]);
-  if (!saved.apiBase || !saved.apiKey) {
+  const saved = await chrome.storage.local.get([
+    "apiBase",
+    "extensionApiKey",
+    "cfAccessClientId",
+    "cfAccessClientSecret",
+  ]);
+  if (!saved.apiBase || !saved.extensionApiKey) {
+    connection = null;
+    connectionWarning.classList.remove("hidden");
+    return false;
+  }
+  const remote = !isLocalApiBase(saved.apiBase);
+  if (remote && (!saved.cfAccessClientId || !saved.cfAccessClientSecret)) {
     connection = null;
     connectionWarning.classList.remove("hidden");
     return false;
@@ -181,7 +197,12 @@ async function loadConnection() {
     connectionWarning.classList.remove("hidden");
     return false;
   }
-  connection = { apiBase: saved.apiBase, apiKey: saved.apiKey };
+  connection = {
+    apiBase: saved.apiBase,
+    extensionApiKey: saved.extensionApiKey,
+    cfAccessClientId: saved.cfAccessClientId || null,
+    cfAccessClientSecret: saved.cfAccessClientSecret || null,
+  };
   connectionWarning.classList.add("hidden");
   return true;
 }
@@ -236,9 +257,16 @@ async function captureActivePage() {
 
 async function apiRequest(path, options = {}) {
   if (!connection) throw new Error("Configura primero la conexión con Job Radar.");
+  const accessHeaders = connection.cfAccessClientId && connection.cfAccessClientSecret
+    ? {
+        "CF-Access-Client-Id": connection.cfAccessClientId,
+        "CF-Access-Client-Secret": connection.cfAccessClientSecret,
+      }
+    : {};
   const headers = {
     Accept: "application/json",
-    Authorization: `Bearer ${connection.apiKey}`,
+    Authorization: `Bearer ${connection.extensionApiKey}`,
+    ...accessHeaders,
     ...(options.headers || {}),
   };
   const response = await fetch(`${connection.apiBase}${path}`, { ...options, headers });
@@ -248,7 +276,7 @@ async function apiRequest(path, options = {}) {
       const body = await response.json();
       if (body.detail) detail = body.detail;
     } catch (_) {
-      // Preserve HTTP status when the API does not return JSON.
+      // Preserve HTTP status when Access or the API does not return JSON.
     }
     throw new Error(detail);
   }
@@ -325,10 +353,10 @@ async function checkResult(ingestionId, { poll = true } = {}) {
   resultPanel.classList.remove("hidden");
   resultStatus.classList.remove("error");
   resultStatus.textContent = "Consultando Job Radar…";
-  const attempts = poll ? 10 : 1;
+  const attempts = poll ? 20 : 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const data = await apiRequest(`/api/v1/ingestions/jobs/${ingestionId}/result`);
+      const data = await apiRequest(`/api/v1/extension/jobs/${ingestionId}/result`);
       renderResult(data);
       if (data.analysis_status === "READY" || data.analysis_status === "FAILED") return;
     } catch (error) {
@@ -336,8 +364,10 @@ async function checkResult(ingestionId, { poll = true } = {}) {
       resultStatus.textContent = `No se pudo consultar: ${error.message}`;
       return;
     }
-    if (attempt < attempts - 1) await delay(1000);
+    if (attempt < attempts - 1) await delay(1500);
   }
+  resultStatus.textContent = "El análisis sigue procesándose. Puedes cerrar la extensión y consultar de nuevo después.";
+  refreshResult.classList.remove("hidden");
 }
 
 captureForm.addEventListener("submit", async (event) => {
@@ -352,7 +382,7 @@ captureForm.addEventListener("submit", async (event) => {
   try {
     const payload = reviewedPayload();
     const idempotencyKey = await payloadIdempotencyKey(payload);
-    const accepted = await apiRequest("/api/v1/ingestions/jobs", {
+    const accepted = await apiRequest("/api/v1/extension/jobs", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
