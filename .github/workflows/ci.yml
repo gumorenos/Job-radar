@@ -79,7 +79,10 @@ jobs:
         run: /usr/bin/python3 -m py_compile ops/openclaw_job_radar_sync.py
 
       - name: Production Compose config
-        run: docker compose --env-file .env.production.example config >/dev/null
+        run: |
+          JOB_RADAR_EXTENSION_API_KEY=ci-compose-extension-key \
+            docker compose --env-file .env.production.example config > /tmp/job-radar-compose.yml
+          grep -q 'JOB_RADAR_EXTENSION_API_KEY: ci-compose-extension-key' /tmp/job-radar-compose.yml
 
       - name: Docker image build
         run: docker build -t job-radar:ci .
