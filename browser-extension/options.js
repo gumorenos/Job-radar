@@ -1,6 +1,8 @@
 const settingsForm = document.getElementById("settingsForm");
 const apiBaseInput = document.getElementById("apiBase");
-const apiKeyInput = document.getElementById("apiKey");
+const extensionApiKeyInput = document.getElementById("extensionApiKey");
+const cfAccessClientIdInput = document.getElementById("cfAccessClientId");
+const cfAccessClientSecretInput = document.getElementById("cfAccessClientSecret");
 const settingsStatus = document.getElementById("settingsStatus");
 
 function normalizeApiBase(rawValue) {
@@ -11,12 +13,17 @@ function normalizeApiBase(rawValue) {
   }
   const localHost = url.hostname === "127.0.0.1" || url.hostname === "localhost";
   if (url.protocol === "http:" && !localHost) {
-    throw new Error("Un servidor remoto debe usar HTTPS para proteger la API key.");
+    throw new Error("Un servidor remoto debe usar HTTPS para proteger las credenciales.");
   }
   if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-    throw new Error("Configura solo el origen, por ejemplo http://127.0.0.1:8010.");
+    throw new Error("Configura solo el origen, por ejemplo https://jobradar.example.com.");
   }
   return url.origin;
+}
+
+function isLocalApiBase(apiBase) {
+  const url = new URL(apiBase);
+  return url.hostname === "127.0.0.1" || url.hostname === "localhost";
 }
 
 function originPermissionPattern(apiBase) {
@@ -31,9 +38,16 @@ async function requestOriginPermission(apiBase) {
 }
 
 async function loadSettings() {
-  const saved = await chrome.storage.local.get(["apiBase", "apiKey"]);
+  const saved = await chrome.storage.local.get([
+    "apiBase",
+    "extensionApiKey",
+    "cfAccessClientId",
+    "cfAccessClientSecret",
+  ]);
   apiBaseInput.value = saved.apiBase || "http://127.0.0.1:8010";
-  apiKeyInput.value = saved.apiKey || "";
+  extensionApiKeyInput.value = saved.extensionApiKey || "";
+  cfAccessClientIdInput.value = saved.cfAccessClientId || "";
+  cfAccessClientSecretInput.value = saved.cfAccessClientSecret || "";
 }
 
 settingsForm.addEventListener("submit", async (event) => {
@@ -42,10 +56,26 @@ settingsForm.addEventListener("submit", async (event) => {
   settingsStatus.textContent = "Guardando…";
   try {
     const apiBase = normalizeApiBase(apiBaseInput.value);
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) throw new Error("La API key es obligatoria.");
+    const extensionApiKey = extensionApiKeyInput.value.trim();
+    const cfAccessClientId = cfAccessClientIdInput.value.trim();
+    const cfAccessClientSecret = cfAccessClientSecretInput.value.trim();
+    if (!extensionApiKey) throw new Error("La clave de extensión es obligatoria.");
+    const hasCloudflareId = Boolean(cfAccessClientId);
+    const hasCloudflareSecret = Boolean(cfAccessClientSecret);
+    if (hasCloudflareId !== hasCloudflareSecret) {
+      throw new Error("Completa ambos valores del Service Token de Cloudflare Access.");
+    }
+    if (!isLocalApiBase(apiBase) && (!hasCloudflareId || !hasCloudflareSecret)) {
+      throw new Error("Una conexión remota requiere el Service Token de Cloudflare Access.");
+    }
     await requestOriginPermission(apiBase);
-    await chrome.storage.local.set({ apiBase, apiKey });
+    await chrome.storage.local.set({
+      apiBase,
+      extensionApiKey,
+      cfAccessClientId,
+      cfAccessClientSecret,
+    });
+    await chrome.storage.local.remove("apiKey");
     apiBaseInput.value = apiBase;
     settingsStatus.textContent = "Conexión guardada.";
   } catch (error) {
