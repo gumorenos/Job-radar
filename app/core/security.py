@@ -11,16 +11,16 @@ from app.core.config import get_settings
 _bearer = HTTPBearer(auto_error=False)
 
 
-def require_api_key(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
+def _require_bearer_secret(
+    credentials: HTTPAuthorizationCredentials | None,
+    *,
+    expected: str,
+    setting_name: str,
 ) -> None:
-    """Validate the integration API key using Authorization: Bearer <token>."""
-
-    expected = get_settings().api_key.get_secret_value()
     if not expected:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="JOB_RADAR_API_KEY is not configured.",
+            detail=f"{setting_name} is not configured.",
         )
 
     if credentials is None or credentials.scheme.lower() != "bearer":
@@ -34,3 +34,27 @@ def require_api_key(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid bearer token.",
         )
+
+
+def require_api_key(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
+) -> None:
+    """Validate the general integration API key."""
+
+    _require_bearer_secret(
+        credentials,
+        expected=get_settings().api_key.get_secret_value().strip(),
+        setting_name="JOB_RADAR_API_KEY",
+    )
+
+
+def require_extension_api_key(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
+) -> None:
+    """Validate the browser-extension-only API key."""
+
+    _require_bearer_secret(
+        credentials,
+        expected=get_settings().extension_api_key.get_secret_value().strip(),
+        setting_name="JOB_RADAR_EXTENSION_API_KEY",
+    )

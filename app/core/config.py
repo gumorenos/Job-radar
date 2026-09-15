@@ -25,6 +25,7 @@ class Settings(BaseSettings):
         "postgresql+psycopg://job_radar:job_radar_dev@localhost:5432/job_radar"
     )
     api_key: SecretStr = SecretStr("")
+    extension_api_key: SecretStr = SecretStr("")
     log_level: str = "INFO"
     storage_path: Path = Path("./storage")
     worker_poll_interval_seconds: float = 2.0
@@ -38,9 +39,14 @@ class Settings(BaseSettings):
         """Fail fast on unsafe production or incomplete external-service settings."""
 
         api_key = self.api_key.get_secret_value().strip()
+        extension_api_key = self.extension_api_key.get_secret_value().strip()
         if self.app_env == "production":
             if not api_key or api_key in _INSECURE_API_KEYS:
                 raise RuntimeError("Production requires a non-default JOB_RADAR_API_KEY.")
+            if extension_api_key in _INSECURE_API_KEYS:
+                raise RuntimeError(
+                    "JOB_RADAR_EXTENSION_API_KEY must not use a default development value."
+                )
             if "job_radar_dev" in self.database_url:
                 raise RuntimeError("Production cannot use the development database password.")
 

@@ -10,17 +10,30 @@
   <main class="options-shell">
     <p class="eyebrow">Job Radar Capture</p>
     <h1>Conexión</h1>
-    <p class="muted">La clave se guarda solo en el almacenamiento local de esta extensión y se envía únicamente al origen que configures.</p>
+    <p class="muted">Las credenciales se guardan solo en el almacenamiento local de esta extensión. La extensión usa una clave propia de Job Radar; nunca necesita la clave general de integraciones.</p>
     <form id="settingsForm" class="stack">
       <label>
         <span>Origen de Job Radar</span>
-        <input id="apiBase" name="api_base" type="url" required placeholder="http://127.0.0.1:8010">
+        <input id="apiBase" name="api_base" type="url" required placeholder="https://jobradar.example.com">
         <small>HTTP solo se acepta para localhost/127.0.0.1. Para un servidor remoto se exige HTTPS.</small>
       </label>
       <label>
-        <span>API key</span>
-        <input id="apiKey" name="api_key" type="password" required autocomplete="off" spellcheck="false">
+        <span>Clave de extensión de Job Radar</span>
+        <input id="extensionApiKey" name="extension_api_key" type="password" required autocomplete="off" spellcheck="false">
+        <small>Debe corresponder a JOB_RADAR_EXTENSION_API_KEY, no a JOB_RADAR_API_KEY.</small>
       </label>
+      <fieldset class="stack">
+        <legend>Cloudflare Access · solo conexión remota</legend>
+        <label>
+          <span>Service Token Client ID</span>
+          <input id="cfAccessClientId" name="cf_access_client_id" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <label>
+          <span>Service Token Client Secret</span>
+          <input id="cfAccessClientSecret" name="cf_access_client_secret" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <small>Déjalos vacíos para localhost. En un origen HTTPS remoto se requieren ambos y deben estar autorizados únicamente para /api/v1/extension/*.</small>
+      </fieldset>
       <div class="actions">
         <span id="settingsStatus" class="status" role="status" aria-live="polite"></span>
         <button type="submit" class="primary">Guardar conexión</button>

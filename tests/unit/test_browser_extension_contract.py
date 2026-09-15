@@ -21,21 +21,36 @@ def test_manifest_v3_uses_click_scoped_capture_without_persistent_page_access() 
     }
 
 
-def test_popup_requires_human_review_and_reuses_official_ingestion_api() -> None:
+def test_popup_requires_review_and_uses_scoped_extension_api() -> None:
     popup = (EXTENSION / "popup.js").read_text()
     options = (EXTENSION / "options.js").read_text()
 
     assert 'human_reviewed_before_submit: true' in popup
     assert 'ingestion_source: "chrome_extension"' in popup
-    assert '"/api/v1/ingestions/jobs"' in popup
+    assert 'apiRequest("/api/v1/extension/jobs"' in popup
+    assert "/api/v1/extension/jobs/${ingestionId}/result" in popup
+    assert "/api/v1/ingestions/jobs" not in popup
+    assert 'Authorization: `Bearer ${connection.extensionApiKey}`' in popup
+    assert '"CF-Access-Client-Id": connection.cfAccessClientId' in popup
+    assert '"CF-Access-Client-Secret": connection.cfAccessClientSecret' in popup
     assert 'Idempotency-Key' in popup
-    assert 'Authorization: `Bearer ${connection.apiKey}`' in popup
-    assert '/result`' in popup
     assert 'func: capturePage' in popup
     assert 'document.querySelectorAll(\'script[type="application/ld+json"]\')' in popup
     assert 'url.protocol === "http:" && !localHost' in options
+    assert 'chrome.storage.local.remove("apiKey")' in options
+    assert "saved.apiKey" not in options
     assert "console.log" not in popup
     assert "console.log" not in options
+
+
+def test_options_expose_separate_extension_and_access_credentials() -> None:
+    html = (EXTENSION / "options.html").read_text()
+
+    assert 'id="extensionApiKey"' in html
+    assert 'id="cfAccessClientId"' in html
+    assert 'id="cfAccessClientSecret"' in html
+    assert "JOB_RADAR_EXTENSION_API_KEY" in html
+    assert "JOB_RADAR_API_KEY" in html
 
 
 def test_popup_exposes_review_fields_before_send() -> None:

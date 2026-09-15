@@ -20,6 +20,7 @@ from app.db.session import get_engine, get_session_factory
 from app.main import app
 
 AUTH = {"Authorization": "Bearer ci-only-test-key"}
+EXT_AUTH = {"Authorization": "Bearer ci-only-extension-key"}
 
 
 def _truncate_database() -> None:
@@ -149,3 +150,70 @@ def test_completed_ingestion_resolves_job_and_latest_analysis() -> None:
     assert payload["classification"] == "HIGH_PRIORITY"
     assert payload["recommendation"] == "PRIORIZAR"
     assert payload["analyzer_version"] == "rules-v6"
+
+
+def test_extension_status_accepts_only_extension_key() -> None:
+    with TestClient(app) as client:
+        missing = client.get("/api/v1/extension/status")
+        general_key = client.get("/api/v1/extension/status", headers=AUTH)
+        extension_key = client.get("/api/v1/extension/status", headers=EXT_AUTH)
+
+    assert missing.status_code == 401
+    assert general_key.status_code == 401
+    assert extension_key.status_code == 200
+    assert extension_key.json() == {"status": "ok", "scope": "chrome_extension"}
+
+
+def test_extension_ingestion_requires_extension_key_and_chrome_source() -> None:
+    payload = {
+        "ingestion_source": "chrome_extension",
+        "posting_source": "linkedin",
+        "job": {
+            "title": "Senior HR Analyst",
+            "url": "https://www.linkedin.com/jobs/view/999001/",
+        },
+    }
+    with TestClient(app) as client:
+        general_key = client.post("/api/v1/extension/jobs", headers=AUTH, json=payload)
+        wrong_source = client.post(
+            "/api/v1/extension/jobs",
+            headers=EXT_AUTH,
+            json={**payload, "ingestion_source": "manual"},
+        )
+        accepted = client.post(
+            "/api/v1/extension/jobs",
+            headers={**EXT_AUTH, "Idempotency-Key": "extension-scope-test"},
+            json=payload,
+        )
+
+    assert general_key.status_code == 401
+    assert wrong_source.status_code == 422
+    assert accepted.status_code == 202
+    assert accepted.json()["status"] == "accepted"
+
+
+def test_extension_result_cannot_read_non_extension_ingestion() -> None:
+    with get_session_factory()() as session:
+        event = IngestionEvent(
+            ingestion_source="agentmail",
+            posting_source="linkedin",
+            raw_payload={"job": {"title": "HR Business Partner"}},
+            payload_hash="c" * 64,
+            status=IngestionStatus.RECEIVED,
+        )
+        session.add(event)
+        session.commit()
+        event_id = event.id
+
+    with TestClient(app) as client:
+        hidden = client.get(
+            f"/api/v1/extension/jobs/{event_id}/result",
+            headers=EXT_AUTH,
+        )
+        general = client.get(
+            f"/api/v1/ingestions/jobs/{event_id}/result",
+            headers=AUTH,
+        )
+
+    assert hidden.status_code == 404
+    assert general.status_code == 200

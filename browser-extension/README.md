@@ -1,48 +1,54 @@
 # Job Radar Capture
 
-Extensión personal Manifest V3 para enviar manualmente la vacante de la pestaña activa al pipeline oficial de Job Radar.
+Extensión personal Manifest V3 para enviar manualmente la vacante de la pestaña activa al pipeline de Job Radar.
 
 ## Alcance v1
 
 - Solo lee la pestaña activa después de que el usuario pulsa la extensión.
 - Prioriza datos estructurados `JobPosting` JSON-LD y usa un fallback DOM revisable.
 - El usuario puede revisar/editar título, empresa, ubicación, modalidad, salario y descripción antes de enviar.
-- Reutiliza `POST /api/v1/ingestions/jobs` con Bearer API key e `Idempotency-Key`.
+- Usa endpoints exclusivos `/api/v1/extension/*` con `JOB_RADAR_EXTENSION_API_KEY` e `Idempotency-Key`.
+- No necesita ni almacena `JOB_RADAR_API_KEY`.
 - Consulta el resultado de la misma ingestión y muestra la clasificación cuando el worker termina.
 - Puede abrir directamente `#/radar/<job-id>`.
 - No hace autofill, auto-apply, scraping en background ni lectura persistente de páginas.
 
-## Primera prueba segura contra Oracle
+## Autenticación remota recomendada
 
-La primera prueba no necesita publicar Job Radar en Internet.
+El dashboard y los endpoints generales permanecen protegidos por la aplicación normal de Cloudflare Access. La extensión usa dos capas separadas:
 
-1. Desplegar en Oracle una imagen inmutable de `main` que incluya este feature, después de backup verificado y QA.
-2. Mantener API y dashboard ligados a `127.0.0.1:8010` en Oracle.
-3. Desde la PC Windows abrir un túnel SSH hacia Oracle:
+1. **Cloudflare Access Service Auth**, limitado por una aplicación/política más específica a `jobradar.<dominio>/api/v1/extension/*`.
+2. **Job Radar extension key**, configurada en el servidor como `JOB_RADAR_EXTENSION_API_KEY` y aceptada únicamente por `/api/v1/extension/*`.
 
-   ```powershell
-   ssh -N -L 8010:127.0.0.1:8010 ubuntu@<ORACLE_HOST>
-   ```
+La extensión envía el Service Token mediante `CF-Access-Client-Id` y `CF-Access-Client-Secret`, y la clave de Job Radar mediante `Authorization: Bearer ...`.
 
-4. Verificar en el navegador local:
+No se debe autorizar el Service Token contra toda la aplicación `jobradar.<dominio>/*`. Debe quedar acotado a `/api/v1/extension/*`, mientras el dashboard sigue requiriendo la identidad humana normal de Cloudflare Access.
 
-   ```text
-   http://127.0.0.1:8010/app/
-   ```
+## Configuración de la extensión
 
-5. En Chrome/Edge abrir la página de extensiones, activar **Developer mode**, elegir **Load unpacked / Cargar descomprimida** y seleccionar la carpeta `browser-extension/` del checkout local de este repositorio.
-6. Abrir las opciones de **Job Radar Capture** y configurar:
-   - Origen: `http://127.0.0.1:8010`
-   - API key: el valor secreto ya configurado en el deployment de Job Radar. No debe copiarse a documentación, commits, screenshots ni logs.
-7. Abrir una vacante real, pulsar la extensión, revisar los campos y enviarla.
-8. Confirmar que aparece resultado de normalización/matching y que **Abrir en Radar** lleva al detalle correcto.
+En Chrome/Edge abrir la página de extensiones, activar **Developer mode**, elegir **Load unpacked / Cargar descomprimida** y seleccionar `browser-extension/`.
 
-Al terminar la prueba, cerrar el proceso SSH elimina el acceso local. No se abren puertos públicos adicionales.
+En las opciones configurar:
 
-## Configuración remota posterior
+- Origen de Job Radar, por ejemplo `https://jobradar.todoestaaca.com`.
+- Clave de extensión: valor de `JOB_RADAR_EXTENSION_API_KEY`.
+- Cloudflare Access Service Token Client ID.
+- Cloudflare Access Service Token Client Secret.
 
-Para un origen remoto la extensión rechaza HTTP y exige HTTPS. El dashboard no debe publicarse sin Cloudflare Access o autenticación equivalente. La estrategia de exposición permanente del endpoint de integración se decide por separado; no se debe debilitar Access ni exponer PostgreSQL para facilitar la extensión.
+Para `localhost`/`127.0.0.1`, los campos de Cloudflare pueden quedar vacíos. Para un origen remoto son obligatorios. HTTP remoto se rechaza.
+
+La configuración antigua `apiKey` no se migra: al guardar la nueva conexión se elimina del storage local para evitar seguir conservando la clave general de integraciones.
+
+## Endpoints scoped
+
+- `GET /api/v1/extension/status`: prueba de autenticación de la extensión.
+- `POST /api/v1/extension/jobs`: acepta únicamente `ingestion_source=chrome_extension`.
+- `GET /api/v1/extension/jobs/{ingestion_id}/result`: solo devuelve ingestas cuyo origen sea `chrome_extension`; otras fuentes responden 404.
+
+Los endpoints generales `/api/v1/ingestions/*` continúan usando `JOB_RADAR_API_KEY` y no aceptan la clave de extensión.
 
 ## Seguridad
 
-La API key se almacena en `chrome.storage.local` de la extensión. Es un secreto local de integración: no se sincroniza mediante código del proyecto y solo se usa como `Authorization: Bearer ...` hacia el origen configurado. Los permisos de host se solicitan explícitamente al guardar la conexión; el manifest no declara `<all_urls>` ni `content_scripts` persistentes.
+Las credenciales se almacenan en `chrome.storage.local` de la extensión y nunca se incluyen en el repositorio, documentación, screenshots o logs. Los permisos de host se solicitan explícitamente al guardar la conexión; el manifest no declara `<all_urls>` ni `content_scripts` persistentes.
+
+El Service Token de Cloudflare y `JOB_RADAR_EXTENSION_API_KEY` deben poder revocarse/rotarse de forma independiente. PostgreSQL y el puerto de origen de Job Radar permanecen en loopback; la extensión no requiere abrir puertos del VPS.

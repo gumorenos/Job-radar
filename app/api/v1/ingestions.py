@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.security import require_api_key
+from app.core.security import require_api_key, require_extension_api_key
 from app.db.enums import IngestionStatus, TaskStatus, TaskType
 from app.db.models import (
     IngestionEvent,
@@ -25,6 +25,7 @@ from app.domains.ingestion.schemas import JobIngestionRequest, JobIngestionRespo
 from app.domains.ingestion.service import IdempotencyConflictError, accept_job_ingestion
 
 router = APIRouter(prefix="/api/v1/ingestions", tags=["ingestion"])
+extension_router = APIRouter(prefix="/api/v1/extension", tags=["extension"])
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
@@ -78,6 +79,11 @@ class IngestionJobResult(BaseModel):
     recommendation: str | None
     analyzer_version: str | None
     error_code: str | None
+
+
+class ExtensionStatus(BaseModel):
+    status: str
+    scope: str
 
 
 @dataclass
@@ -136,6 +142,84 @@ def _analysis_state(
     if latest_analysis is not None:
         return "READY", latest_analysis
     return "UNAVAILABLE", None
+
+
+def _ingestion_job_result(
+    session: Session,
+    ingestion_id: UUID,
+    *,
+    expected_source: str | None = None,
+) -> IngestionJobResult:
+    event = session.get(IngestionEvent, ingestion_id)
+    if event is None or (
+        expected_source is not None and event.ingestion_source != expected_source
+    ):
+        raise HTTPException(status_code=404, detail="Ingestion event not found.")
+
+    job = _job_for_ingestion(session, ingestion_id)
+    analysis_status = "UNAVAILABLE"
+    analysis = None
+    if job is not None:
+        analysis_status, analysis = _analysis_state(session, job)
+    elif event.status in {IngestionStatus.RECEIVED, IngestionStatus.PROCESSING}:
+        analysis_status = "PENDING"
+    elif event.status == IngestionStatus.FAILED:
+        analysis_status = "FAILED"
+
+    classification = None
+    if analysis is not None and analysis.classification is not None:
+        classification = analysis.classification.value
+
+    return IngestionJobResult(
+        ingestion_id=event.id,
+        ingestion_status=event.status,
+        analysis_status=analysis_status,
+        job_id=job.id if job is not None else None,
+        title=job.canonical_title if job is not None else None,
+        company=job.company_name_raw if job is not None else None,
+        classification=classification,
+        recommendation=analysis.recommendation if analysis is not None else None,
+        analyzer_version=analysis.analyzer_version if analysis is not None else None,
+        error_code=event.error_code,
+    )
+
+
+async def _accept_ingestion_request(
+    request: Request,
+    payload: JobIngestionRequest,
+    session: Session,
+    idempotency_key: str | None,
+    *,
+    expected_source: str | None = None,
+) -> JobIngestionResponse:
+    if expected_source is not None and payload.ingestion_source != expected_source:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"ingestion_source must be {expected_source!r} for this endpoint.",
+        )
+
+    raw_json: Any = await request.json()
+    if not isinstance(raw_json, dict):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The ingestion payload must be a JSON object.",
+        )
+
+    try:
+        result = accept_job_ingestion(
+            session,
+            payload,
+            idempotency_key,
+            raw_payload=raw_json,
+        )
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    return JobIngestionResponse(
+        ingestion_id=result.ingestion_id,
+        status=result.status,
+        received_at=result.received_at,
+    )
 
 
 @router.get("/summary", response_model=IngestionOverview)
@@ -238,36 +322,7 @@ def recent_ingestions(
     dependencies=[Depends(require_api_key)],
 )
 def ingestion_job_result(ingestion_id: UUID, session: SessionDep) -> IngestionJobResult:
-    event = session.get(IngestionEvent, ingestion_id)
-    if event is None:
-        raise HTTPException(status_code=404, detail="Ingestion event not found.")
-
-    job = _job_for_ingestion(session, ingestion_id)
-    analysis_status = "UNAVAILABLE"
-    analysis = None
-    if job is not None:
-        analysis_status, analysis = _analysis_state(session, job)
-    elif event.status in {IngestionStatus.RECEIVED, IngestionStatus.PROCESSING}:
-        analysis_status = "PENDING"
-    elif event.status == IngestionStatus.FAILED:
-        analysis_status = "FAILED"
-
-    classification = None
-    if analysis is not None and analysis.classification is not None:
-        classification = analysis.classification.value
-
-    return IngestionJobResult(
-        ingestion_id=event.id,
-        ingestion_status=event.status,
-        analysis_status=analysis_status,
-        job_id=job.id if job is not None else None,
-        title=job.canonical_title if job is not None else None,
-        company=job.company_name_raw if job is not None else None,
-        classification=classification,
-        recommendation=analysis.recommendation if analysis is not None else None,
-        analyzer_version=analysis.analyzer_version if analysis is not None else None,
-        error_code=event.error_code,
-    )
+    return _ingestion_job_result(session, ingestion_id)
 
 
 @router.post(
@@ -282,27 +337,55 @@ async def ingest_job(
     session: SessionDep,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> JobIngestionResponse:
-    # Preserve the complete semantic JSON document received from the integration, including
-    # fields that the current normalized request schema does not yet understand.
-    raw_json: Any = await request.json()
-    if not isinstance(raw_json, dict):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The ingestion payload must be a JSON object.",
-        )
+    return await _accept_ingestion_request(
+        request,
+        payload,
+        session,
+        idempotency_key,
+    )
 
-    try:
-        result = accept_job_ingestion(
-            session,
-            payload,
-            idempotency_key,
-            raw_payload=raw_json,
-        )
-    except IdempotencyConflictError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
-    return JobIngestionResponse(
-        ingestion_id=result.ingestion_id,
-        status=result.status,
-        received_at=result.received_at,
+@extension_router.get(
+    "/status",
+    response_model=ExtensionStatus,
+    dependencies=[Depends(require_extension_api_key)],
+)
+def extension_status() -> ExtensionStatus:
+    return ExtensionStatus(status="ok", scope="chrome_extension")
+
+
+@extension_router.get(
+    "/jobs/{ingestion_id}/result",
+    response_model=IngestionJobResult,
+    dependencies=[Depends(require_extension_api_key)],
+)
+def extension_ingestion_job_result(
+    ingestion_id: UUID,
+    session: SessionDep,
+) -> IngestionJobResult:
+    return _ingestion_job_result(
+        session,
+        ingestion_id,
+        expected_source="chrome_extension",
+    )
+
+
+@extension_router.post(
+    "/jobs",
+    response_model=JobIngestionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_extension_api_key)],
+)
+async def extension_ingest_job(
+    request: Request,
+    payload: JobIngestionRequest,
+    session: SessionDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> JobIngestionResponse:
+    return await _accept_ingestion_request(
+        request,
+        payload,
+        session,
+        idempotency_key,
+        expected_source="chrome_extension",
     )
