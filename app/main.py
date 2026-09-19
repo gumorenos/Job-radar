@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
@@ -31,4 +32,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(api_router)
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/app/", status_code=307)
+
+
 app.mount("/app", StaticFiles(directory=WEB_DIR, html=True), name="web")
